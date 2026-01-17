@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth"
-import { AgentsView, AgentsViewError, AgentsViewLoading } from "@/modules/agents/ui/agents-view"
+import { AgentsView, AgentsViewError, AgentsViewLoading } from "@/modules/agents/ui/views/agents-view"
 import { AgentsListHeader } from "@/modules/agents/ui/components/agents-list-header"
 import { getQueryClient, trpc } from "@/trpc/server"
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
