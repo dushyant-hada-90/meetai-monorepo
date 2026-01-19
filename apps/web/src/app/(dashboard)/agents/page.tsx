@@ -15,14 +15,15 @@ interface Props {
 }
 const Page = async ({searchParams}:Props) => {
   const filters = await loadSearchParams(searchParams)
-  console.log(filters)
-  const session = await auth.api.getSession({
-      headers : await headers()
-    })
+  // i think this part is unnecessary as it adds one more call to db , we already have auth validation in procedures
+  // console.log(filters)
+  // const session = await auth.api.getSession({
+  //     headers : await headers()
+  //   })
   
-    if (!session){
-      redirect("/sign-in")
-    }
+  //   if (!session){
+  //     redirect("/sign-in")
+  //   }
 
   const queryClient = getQueryClient()
   await queryClient.fetchQuery(trpc.agents.getMany.queryOptions({
