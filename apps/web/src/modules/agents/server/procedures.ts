@@ -8,12 +8,19 @@ import { and, count, desc, eq, ilike } from "drizzle-orm"
 import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MIN_PAGE_SIZE } from "@/constants"
 
 export const agentsRouter = createTRPCRouter({
-    getOne: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ input }) => {
-        const [existingAgents] = await db
+    getOne: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ input ,ctx}) => {
+        const [existingAgent] = await db
             .select()
             .from(agents)
-            .where(eq(agents.id, input.id))
-        return existingAgents
+            .where(and(
+                eq(agents.id, input.id),
+                eq(agents.userId,ctx.auth.user.id)
+            ))
+        if (!existingAgent){
+            throw new TRPCError({code:"NOT_FOUND",message:"agent not found"});
+            
+        }
+        return existingAgent
     }),
 
 
