@@ -6,40 +6,34 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
-import {ErrorBoundary} from "react-error-boundary"
+import { ErrorBoundary } from "react-error-boundary"
 import { SearchParams } from "nuqs"
 import { loadSearchParams } from "@/modules/agents/params"
+import { createTRPCContext } from "@/trpc/init"
 
 interface Props {
-  searchParams:Promise<SearchParams>
+  searchParams: Promise<SearchParams>
 }
-const Page = async ({searchParams}:Props) => {
+const Page = async ({ searchParams }: Props) => {
   const filters = await loadSearchParams(searchParams)
-  // i think this part is unnecessary as it adds one more call to db , we already have auth validation in procedures
-  // console.log(filters)
-  // const session = await auth.api.getSession({
-  //     headers : await headers()
-  //   })
-  
-  //   if (!session){
-  //     redirect("/sign-in")
-  //   }
+  const { session } = await createTRPCContext(); // shares cached TRPC context
+  if (!session) redirect('./sign-in'); // or redirect('/sign-in') for clarity
 
   const queryClient = getQueryClient()
   await queryClient.fetchQuery(trpc.agents.getMany.queryOptions({
     ...filters,
   }))
-  
+
   return (
     <>
-    <AgentsListHeader/>
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <Suspense fallback={<AgentsViewLoading />}>
-      <ErrorBoundary fallback={<AgentsViewError />}>
-        <AgentsView />
-        </ErrorBoundary>
-      </Suspense>
-    </HydrationBoundary>
+      <AgentsListHeader />
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <Suspense fallback={<AgentsViewLoading />}>
+          <ErrorBoundary fallback={<AgentsViewError />}>
+            <AgentsView />
+          </ErrorBoundary>
+        </Suspense>
+      </HydrationBoundary>
     </>
   )
 }
