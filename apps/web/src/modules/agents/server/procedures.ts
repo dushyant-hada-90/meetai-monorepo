@@ -97,6 +97,7 @@ export const agentsRouter = createTRPCRouter({
                 )
                 )
             const totalPages = Math.ceil(total.count / pageSize)
+            // for testing: await new Promise((resolve) => setTimeout(resolve, 5000));
 
             return {
                 items: data,
