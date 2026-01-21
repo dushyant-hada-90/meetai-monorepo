@@ -1,7 +1,7 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { AgentGetOne } from "../../types"
+import {  AgentsGetMany } from "../../types"
 import { GeneratedAvatar } from "@/components/generated-avatar"
 import { CornerDownRightIcon, VideoIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -15,12 +15,12 @@ export type Payment = {
   email: string
 }
 
-export const columns: ColumnDef<AgentGetOne>[] = [
+export const columns: ColumnDef<AgentsGetMany[number]>[] = [
   {
     accessorKey: "name",
     header: "Agent name",
     cell: ({ row }) => (
-      <div className="flex flex-col gap-x-2">
+      <div className="flex flex-col gap-y-1">
         <div className="flex items-center gap-x-2">
           <GeneratedAvatar
             variant="botttsNeutral"
