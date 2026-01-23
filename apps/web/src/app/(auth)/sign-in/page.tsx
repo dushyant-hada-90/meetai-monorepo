@@ -9,6 +9,7 @@ const Page = async () => {
       })
     
       if (!!session){
+        console.log("session exists")
         redirect("/")
       }
     return <SignInView/>

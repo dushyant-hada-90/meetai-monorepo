@@ -16,11 +16,12 @@ interface Props {
 }
 const Page = async ({ searchParams }: Props) => {
   const filters = await loadSearchParams(searchParams)
-  const { session } = await createTRPCContext(); // shares cached TRPC context
-  if (!session) redirect('./sign-in'); // or redirect('/sign-in') for clarity
+  
+  // const { session } = await createTRPCContext(); // shares cached TRPC context
+  // if (!session) redirect('./sign-in'); // or redirect('/sign-in') for clarity
 
   const queryClient = getQueryClient()
-  await queryClient.fetchQuery(trpc.agents.getMany.queryOptions({
+  await queryClient.prefetchQuery(trpc.agents.getMany.queryOptions({
     ...filters,
   }))
 

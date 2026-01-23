@@ -6,8 +6,7 @@ import { redirect } from "next/navigation"
 
 
 const Page = async ()=>{
-  const { session } = await createTRPCContext(); // shares cached TRPC context
-  if (!session) redirect('./sign-in'); // or redirect('/sign-in') for clarity
+  
   
   return (
     <HomeView/>
