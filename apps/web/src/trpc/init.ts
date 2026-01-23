@@ -2,32 +2,17 @@ import { auth } from '@/lib/auth';
 import { initTRPC, TRPCError } from '@trpc/server';
 import { headers } from 'next/headers';
 import { cache } from 'react';
-
-type CreateContextOptions = {
-  headers?: Headers;
-};
-
-type SessionPayload = Awaited<ReturnType<typeof auth.api.getSession>>;
-
-type TRPCContext = {
-  session: SessionPayload;
-  auth?: NonNullable<SessionPayload>;
-};
-
-const createContextInner = async (
-  opts?: CreateContextOptions,
-): Promise<TRPCContext> => {
-  const headerList = opts?.headers ?? (await headers());
-  const session = await auth.api.getSession({ headers: headerList });
-  return { session };
-};
-
-export const createTRPCContext = cache(() => createContextInner());
-
-export const createTRPCApiContext = (opts: CreateContextOptions) =>
-  createContextInner(opts);
-
-const t = initTRPC.context<TRPCContext>().create({
+export const createTRPCContext = cache(async () => {
+  /**
+   * @see: https://trpc.io/docs/server/context
+   */
+  return { userId: 'user_123' };
+});
+// Avoid exporting the entire t-object
+// since it's not very descriptive.
+// For instance, the use of a t variable
+// is common in i18n libraries.
+const t = initTRPC.create({
   /**
    * @see https://trpc.io/docs/server/data-transformers
    */
@@ -37,11 +22,19 @@ const t = initTRPC.context<TRPCContext>().create({
 export const createTRPCRouter = t.router;
 export const createCallerFactory = t.createCallerFactory;
 export const baseProcedure = t.procedure;
-
-export const protectedProcedure = baseProcedure.use(({ ctx, next }) => {
-  const session = ctx.session;
+/**
+ * Protected procedure that requires a valid session.
+ */
+export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  })
   if (!session) {
-    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'unauthorized' });
+    throw new TRPCError({
+      code: 'UNAUTHORIZED',
+      message: 'You must be logged in to access this resource.'
+    });
   }
+  // Type-cast auth to be non-nullable for subsequent middleware/resolvers
   return next({ ctx: { ...ctx, auth: session } });
 });

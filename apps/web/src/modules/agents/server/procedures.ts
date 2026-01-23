@@ -6,8 +6,10 @@ import { agentsInsertSchema, agentsUpdateSchema } from "../schemas"
 import { z } from "zod"
 import { and, count, desc, eq, ilike } from "drizzle-orm"
 import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MIN_PAGE_SIZE } from "@/constants"
+import { unauthorized } from "next/navigation"
 
 export const agentsRouter = createTRPCRouter({
+    
     update: protectedProcedure
         .input(agentsUpdateSchema)
         .mutation(async ({ ctx, input }) => {
@@ -98,7 +100,7 @@ export const agentsRouter = createTRPCRouter({
                 )
             const totalPages = Math.ceil(total.count / pageSize)
             // for testing: await new Promise((resolve) => setTimeout(resolve, 5000));
-
+// throw new TRPCError({code:"UNAUTHORIZED"})
             return {
                 items: data,
                 total: total.count,
