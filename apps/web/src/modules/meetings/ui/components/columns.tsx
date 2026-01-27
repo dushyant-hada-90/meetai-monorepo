@@ -72,7 +72,7 @@ export const columns: ColumnDef<MeetingGetMany[number]>[] = [
         <Badge
           variant="outline"
           className={cn(
-            "capitalize [&> svg]: size - 4 text-muted-foreground",
+            "capitalize [&> svg] text-muted-foreground",
             statusColorMap[row.original.status as keyof typeof statusColorMap]
           )}
         >

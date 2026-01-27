@@ -41,7 +41,7 @@ export const CallView = ({ meetingId }: Props) => {
         const fetchToken = async () => {
             try {
                 // Ensure the payload matches what your tRPC router expects
-                const {token,url} = await generateToken({ roomName: meetingId });
+                const {token} = await generateToken({ roomName: meetingId });
                 setToken(token); 
             } catch (error) {
                 console.error("Failed to get token:", error);
@@ -58,12 +58,16 @@ export const CallView = ({ meetingId }: Props) => {
             token={token}
             serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
             connect={joined && !!token}
-            audio={true}
-            video={true}
+            audio={audioOn}
+            video={videoOn}
             style={{ height: '100vh' }}
         >
             {!joined ? (
-                <CallLobby onJoin={() => setJoined(true)}  />
+                <CallLobby onJoin={({ audio, video }) => {
+                    setAudioOn(audio);
+                    setVideoOn(video);
+                    setJoined(true);
+                }}  />
             ) : (
                 <CallActive   meetingName={data.name}/>
             )}
