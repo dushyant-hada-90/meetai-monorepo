@@ -41,8 +41,8 @@ export const MeetingIdView = ({ meetingId }: Props) => {
                 // todo: invalidate free tier usage
                 router.push("/meetings")
             },
-            onError: (error) => {
-                // console.error(error)
+            onError: (_error) => {
+                // console.error(_error)
                 toast.error("unknown error occured")
             }
         })

@@ -2,8 +2,8 @@
 import { ErrorState } from "@/components/error-state";
 
 export default function Error({
-  error,
-  reset,
+  error: _error,
+  reset: _reset,
 }: {
   error: Error
   reset: () => void
