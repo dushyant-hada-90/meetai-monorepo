@@ -57,7 +57,7 @@ export const CallView = ({ meetingId }: Props) => {
         <LiveKitRoom
             token={token}
             serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-            connect={joined}
+            connect={joined && !!token}
             audio={true}
             video={true}
             style={{ height: '100vh' }}
