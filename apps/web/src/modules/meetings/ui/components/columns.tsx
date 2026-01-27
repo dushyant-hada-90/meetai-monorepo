@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { MeetingGetMany } from "../../types"
 import { GeneratedAvatar } from "@/components/generated-avatar"
-import { CircleCheckIcon, CircleXIcon, ClockArrowUpIcon, ClockFadingIcon, CornerDownRightIcon, LoaderIcon, VideoIcon } from "lucide-react"
+import { CircleCheckIcon, CircleXIcon, ClockArrowUpIcon, ClockFadingIcon, CornerDownRightIcon, LoaderIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import humanizeDuration from "humanize-duration"
 import { format } from "date-fns"
@@ -66,8 +66,6 @@ export const columns: ColumnDef<MeetingGetMany[number]>[] = [
     accessorKey: "status",
     header: "Meetings",
     cell: ({ row }) => {
-      11
-
       const Icon = statusIconMap[row.original.status as keyof typeof statusIconMap];
 
       return (

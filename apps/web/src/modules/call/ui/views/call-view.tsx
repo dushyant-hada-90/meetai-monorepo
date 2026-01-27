@@ -1,14 +1,22 @@
 "use client"
 import { ErrorState } from "@/components/error-state"
 import { useTRPC } from "@/trpc/client"
-import { useSuspenseQuery } from "@tanstack/react-query"
-import { CallProvider } from "../components/call-provider"
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
+import { LiveKitRoom } from "@livekit/components-react"
+import { CallLobby } from "../components/call-lobby"
+import { CallActive } from "../components/call-active"
+import { useEffect, useState } from "react"
 
 interface Props {
     meetingId: string
 }
 
 export const CallView = ({ meetingId }: Props) => {
+    const [joined, setJoined] = useState<boolean>(false)
+    const [audioOn, setAudioOn] = useState<boolean>(false)
+    const [videoOn, setVideoOn] = useState<boolean>(false)
+    const [token, setToken] = useState<string>("");
+
     const trpc = useTRPC()
     const { data } = useSuspenseQuery(trpc.meetings.getOne.queryOptions(
         { id: meetingId }
@@ -21,13 +29,44 @@ export const CallView = ({ meetingId }: Props) => {
                     title="Meeting has ended"
                     description="You can no longer join this meeting"
                 />
-            </div> 
-        )  
+            </div>
+        )
     }
+ 
+    const { mutateAsync: generateToken } = useMutation(
+        trpc.meetings.generateToken.mutationOptions(),
+    );
+
+    useEffect(() => {
+        const fetchToken = async () => {
+            try {
+                // Ensure the payload matches what your tRPC router expects
+                const {token,url} = await generateToken({ roomName: meetingId });
+                setToken(token); 
+            } catch (error) {
+                console.error("Failed to get token:", error);
+            }
+        };
+
+        fetchToken();
+    }, [generateToken, meetingId]);
+
+    
 
     return (
-        <div className="h-screen">
-            <CallProvider meetingId={meetingId} meetingName={data.name}/>
-        </div>
-    )
+        <LiveKitRoom
+            token={token}
+            serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+            connect={joined}
+            audio={true}
+            video={true}
+            style={{ height: '100vh' }}
+        >
+            {!joined ? (
+                <CallLobby onJoin={() => setJoined(true)}  />
+            ) : (
+                <CallActive   meetingName={data.name}/>
+            )}
+        </LiveKitRoom>
+    );
 }
