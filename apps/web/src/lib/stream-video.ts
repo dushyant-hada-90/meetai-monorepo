@@ -2,7 +2,6 @@ import "server-only"
 
 // server.js
 import { AccessToken } from 'livekit-server-sdk';
-import { NextResponse } from "next/server";
 
 export const generateLivekitToken =  async (body:any) => {
 //   const body = req.body;

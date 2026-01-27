@@ -15,16 +15,16 @@ export const meetingsRouter = createTRPCRouter({
         .mutation(async ({ ctx, input }) => {
             const token = await generateLivekitToken(
                 {
-                    room_name:input.roomName,
-                    participant_identity:ctx.auth.user.id,
-                    participantName:ctx.auth.user.name
+                    room_name: input.roomName,
+                    participant_identity: ctx.auth.user.id,
+                    participant_name: ctx.auth.user.name
                 }
             )
             const url = process.env.NEXT_PUBLIC_LIVEKIT_URL
-            return {token,url}
+            return { token, url }
         }),
 
-        
+
     remove: protectedProcedure
         .input(z.object({ id: z.string() }))
         .mutation(async ({ ctx, input }) => {
@@ -76,10 +76,10 @@ export const meetingsRouter = createTRPCRouter({
                     userId: ctx.auth.user.id,
                 })
                 .returning()
-            
+
             // LiveKit rooms are created automatically when participants join
             // No need to pre-create rooms like with Stream
-            
+
             return createdMeeting
         }),
 

@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { Reference } from "drizzle-orm/gel-core";
+import { pgTable, text, timestamp, boolean, pgEnum, jsonb } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid"
 
 export const user = pgTable("user", {
@@ -69,6 +70,15 @@ export const meetingStatus = pgEnum("meeting_status", [
   "cancelled"
 ])
 
+
+export type UserId = typeof user.$inferSelect.id;
+
+export interface TranscriptItem {
+  role: UserId | "assistant"; 
+  text: string;
+  time: number; // Storing Date.now()
+}
+
 export const meetings = pgTable("meetings", {
   id: text("id")
     .primaryKey()
@@ -83,7 +93,10 @@ export const meetings = pgTable("meetings", {
   status: meetingStatus("status").notNull().default("upcoming"),
   startedAt: timestamp("started_at"),
   endedAt: timestamp("ended_at"),
-  transcriptUrl: text("recording_url"),
+  transcript: jsonb("transcript")
+    .$type<TranscriptItem[]>()
+    .notNull()
+    .default([]),
   summary: text("summary"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow()
