@@ -22,12 +22,14 @@ const Layout = async ({ children }: Props) => {
 
   return (
     <SidebarProvider>
-      <div className="flex h-screen w-screen overflow-hidden">
+      <div className="flex h-screen w-full">
         <DashboardSidebar />
 
-        <main className="flex flex-col flex-1 bg-muted">
+        <main className="flex flex-col flex-1 bg-muted overflow-hidden">
           <DashboardNavBar />
-          {children}
+          <div className="flex-1 overflow-y-auto">
+            {children}
+          </div>
         </main>
       </div>
     </SidebarProvider>

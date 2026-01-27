@@ -32,8 +32,8 @@ export function DataTable<TData, TValue>({
   })
 
   return (
-    <div className="overflow-hidden rounded-lg bg-background border">
-      <Table>
+    <div className="overflow-x-auto rounded-lg bg-background border">
+      <Table className="min-w-[600px]">
         
         <TableBody>
           {table.getRowModel().rows?.length ? (
