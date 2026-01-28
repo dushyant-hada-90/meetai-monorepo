@@ -24,11 +24,15 @@ export const AgentIdView = ({ agentId }: Props) => {
   const queryClient = useQueryClient()
   const [updateAgentDialogOpen, setUpdateAgentDialogOpen] = useState(false)
   const { data } = useSuspenseQuery(trpc.agents.getOne.queryOptions({ id: agentId }))
+
   const removeAgent = useMutation(
     trpc.agents.remove.mutationOptions({
-      onSuccess: () => {
+      onSuccess:async () => {
         queryClient.invalidateQueries(trpc.agents.getMany.queryOptions({}))
-        //TODO : queryClient.invalidateQueries(trpc.agents.free_tier_usage.queryOptions({}))
+
+        await queryClient.invalidateQueries(
+          trpc.premium.getFreeUsage.queryOptions()
+        )
         router.push("/agents")
       },
       onError: (error) => {
