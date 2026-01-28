@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { inngest } from "./client";
-import { meetings, user as userTable, type TranscriptItem } from "@/db/schema";
+import { meetings, user as userTable, agents, type TranscriptItem } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { createAgent, gemini, type TextMessage } from "@inngest/agent-kit";
 
@@ -14,19 +14,13 @@ const summarizer = createAgent({
     Use the following markdown structure for every output:
 
     ### Overview
-    Provide a detailed, engaging summary of the session's content. Focus on major features, user workflows, and any key takeaways. Write in a narrative style, using full sentences. Highlight unique or powerful aspects of the discussion.
+    Provide a detailed, engaging summary of the session's content. Focus on major features, user workflows, and any key takeaways.
 
     ### Notes
-    Break down key content into thematic sections with timestamp ranges (e.g., 05:00 - 10:00). Each section should summarize key points, actions, or demos in bullet format.
-
-    Example:
-    #### Section Name (00:00 - 05:30)
-    - Main point or demo shown here
-    - Another key insight or interaction
-    - Follow-up tool or explanation provided
+    Break down key content into thematic sections with timestamp ranges (e.g., 05:00 - 10:00).
   `.trim(),
   model: gemini({ 
-    model: "gemini-2.5-flash", // Using 1.5-flash for speed/cost-efficiency
+    model: "gemini-2.5-flash", 
     apiKey: process.env.GOOGLE_API_KEY 
   })
 });
@@ -61,39 +55,39 @@ export const meetingsProcessing = inngest.createFunction(
       const rawTranscript = meeting.transcript as TranscriptItem[];
       if (!rawTranscript || rawTranscript.length === 0) return "";
 
-      // 1. Extract unique User IDs (excluding 'assistant')
-      const userIds = Array.from(
-        new Set(
-          rawTranscript
-            .map((t) => t.role)
-            .filter((role) => role !== "assistant")
-        )
-      ) as string[];
-
-      // 2. Map User IDs to Names
-      const userMap = new Map<string, string>();
-      if (userIds.length > 0) {
-        const users = await db
-          .select({ id: userTable.id, name: userTable.name })
+      // 1. Collect unique IDs for Users and Agents
+      const speakerIds = Array.from(new Set(rawTranscript.map((t) => t.speaker)));
+      
+      // 2. Fetch User and Agent names in parallel
+      const [users, agentRows] = await Promise.all([
+        db.select({ id: userTable.id, name: userTable.name })
           .from(userTable)
-          .where(inArray(userTable.id, userIds));
-        users.forEach((u) => userMap.set(u.id, u.name));
-      }
+          .where(inArray(userTable.id, speakerIds.filter(id => id !== "unknownUser"))),
+        db.select({ id: agents.id, name: agents.name })
+          .from(agents)
+          .where(inArray(agents.id, speakerIds))
+      ]);
+
+      const nameMap = new Map<string, string>();
+      users.forEach((u) => nameMap.set(u.id, u.name ?? "Unknown User"));
+      agentRows.forEach((a) => nameMap.set(a.id, a.name ?? "Assistant"));
 
       // 3. Determine start time for relative timestamps
-      const startRef = meeting.startedAt 
-        ? new Date(meeting.startedAt).getTime() 
-        : new Date(rawTranscript[0].time).getTime();
+      // We use the first message time as the baseline (00:00)
+      const startRef = rawTranscript[0].time;
 
       // 4. Transform into readable string
       return rawTranscript.map((item) => {
-        const msgTime = new Date(item.time).getTime();
-        const relativeMs = Math.max(0, msgTime - startRef);
+        const relativeMs = Math.max(0, item.time - startRef);
         const timestamp = formatRelativeTime(relativeMs);
         
-        const speakerName = item.role === "assistant" 
-          ? "AI Assistant" 
-          : (userMap.get(item.role) || "User");
+        // Resolve name based on role and speaker ID
+        let speakerName = "Unknown User";
+        if (item.role === "assistant") {
+            speakerName = nameMap.get(item.speaker) ?? "Assistant";
+        } else {
+            speakerName = nameMap.get(item.speaker) ?? "User";
+        }
 
         return `[${timestamp}] ${speakerName}: ${item.text}`;
       }).join("\n");
@@ -104,13 +98,11 @@ export const meetingsProcessing = inngest.createFunction(
     }
 
     // --- STEP 3: Run AI Summarization ---
-      const { output } = await summarizer.run(
-        `Please summarize the following transcript:\n\n${formattedTranscript}`
-      );
-      // Extract the content from the last message in the output
-      const lastMessage = output[output.length - 1] as TextMessage;
-      const aiResponse = lastMessage.content;
-    
+    const { output } = await summarizer.run(
+      `Please summarize the following transcript:\n\n${formattedTranscript}`
+    );
+    const lastMessage = output[output.length - 1] as TextMessage;
+    const aiResponse = lastMessage.content;
 
     // --- STEP 4: Save Summary to DB ---
     await step.run("save-summary", async () => {

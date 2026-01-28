@@ -72,9 +72,11 @@ export const meetingStatus = pgEnum("meeting_status", [
 
 
 export type UserId = typeof user.$inferSelect.id;
+export type AgentId = typeof agents.$inferSelect.id;
 
 export interface TranscriptItem {
-  role: UserId | "assistant"; 
+  role: "human" | "assistant"; 
+  speaker:AgentId|UserId|"unknownUser"
   text: string;
   time: number; // Storing Date.now()
 }
