@@ -14,21 +14,21 @@ interface Props {
 
 export const AgentIdViewHeader = ({ agentId, agentName, onEdit, onRemove }: Props) => {
     return (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-x-2">
             <Breadcrumb>
                 <BreadcrumbList>
                     <BreadcrumbItem>
-                        <BreadcrumbLink asChild className="font-medium text-xl">
+                        <BreadcrumbLink asChild className="font-medium text-base md:text-xl">
                             <Link href="/agents">
                                 My Agents
                             </Link>
                         </BreadcrumbLink>
                     </BreadcrumbItem>
-                    <BreadcrumbSeparator className="text-foreground text-xl font-medium [&>svg] :size-4">
+                    <BreadcrumbSeparator className="text-foreground text-base md:text-xl font-medium [&>svg]:size-4">
                         <ChevronRightIcon />
                     </BreadcrumbSeparator>
                     <BreadcrumbItem>
-                        <BreadcrumbLink asChild className="font-medium text-xl text-foreground">
+                        <BreadcrumbLink asChild className="font-medium text-base md:text-xl text-foreground line-clamp-1">
                             <Link href={`/agents/${agentId}`}>
                                 {agentName}
                             </Link>
