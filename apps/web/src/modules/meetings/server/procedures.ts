@@ -51,8 +51,8 @@ export const meetingsRouter = createTRPCRouter({
             const userIds = Array.from(
                 new Set(
                     transcript
-                        .filter(t => t.role !== "assistant") 
-                        .map(t => t.speaker)                
+                        .filter(t => t.role !== "assistant" && t.speaker !== "unknownUser")
+                        .map(t => t.speaker)
                 )
             );
 
