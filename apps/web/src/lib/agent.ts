@@ -15,6 +15,7 @@ import { and, eq, not } from 'drizzle-orm';
 import { AgentId, agents, meetings, TranscriptItem, UserId } from '@/db/schema';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { inngest } from "@/inngest/client";
+import { useQueryClient } from '@tanstack/react-query';
 dotenv.config({ path: '.env.local' });
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
@@ -106,6 +107,14 @@ export default defineAgent({
           .where(eq(meetings.id, meetingId));
 
         console.log("DB Updated: Meeting status set to processing and saved transcript array.");
+        // const queryClient = useQueryClient()
+        // const trpc = useTRPC()
+        // await queryClient.invalidateQueries(
+        //   trpc.meetings.getMany.queryOptions({})
+        // )
+        // await queryClient.invalidateQueries(
+        //   trpc.meetings.getOne.queryOptions({id:meetingId})
+        // )
 
         await inngest.send({
           name: "meetings/processing", // This MUST match the event name in your inngest function

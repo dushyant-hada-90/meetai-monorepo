@@ -27,7 +27,7 @@ export const MeetingForm = ({
     initialValues,
 }: MeetingFormProps) => {
     const trpc = useTRPC()
-    // const router = useRouter()
+    const router = useRouter()
     const queryClient = useQueryClient()
 
     const [openNewAgentDialog, setOpenNewAgentDialog] = useState(false)
@@ -47,12 +47,16 @@ export const MeetingForm = ({
                     trpc.meetings.getMany.queryOptions({})
                 )
 
-                // invalidate free tier usage
+                await queryClient.invalidateQueries(
+                    trpc.premium.getFreeUsage.queryOptions()
+                )
                 onSuccess?.(data.id)
             },
             onError: (error) => {
                 toast.error(error.message)
-                // todo: check if error code is forbidden, redirect to /upgrade
+                if (error.data?.code === "FORBIDDEN") {
+                    router.push("/upgrade")
+                }
             },
         })
     )
@@ -99,83 +103,83 @@ export const MeetingForm = ({
 
     return (
         <>
-        <NewAgentDialog open={openNewAgentDialog} onOpenChange={setOpenNewAgentDialog}/>
-        <Form {...form}>
-            <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+            <NewAgentDialog open={openNewAgentDialog} onOpenChange={setOpenNewAgentDialog} />
+            <Form {...form}>
+                <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
 
-                <FormField
-                    name="name"
-                    control={form.control}
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Name</FormLabel>
-                            <FormControl>
-                                <Input {...field} placeholder="e.g. Math Consultations" />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                <FormField
-                    name="agentId"
-                    control={form.control}
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Agent</FormLabel>
-                            <FormControl>
-                                <CommandSelect
-                                    options={(agents.data?.items ?? []).map((agent) => ({
-                                        id: agent.id,
-                                        value: agent.id,
-                                        children: (
-                                            <div className="flex items-center gap-x-2">
-                                                <GeneratedAvatar
-                                                    seed={agent.name}
-                                                    variant="botttsNeutral"
-                                                    className="border size-6"
-                                                />
-                                                <span>{agent.name}</span>
-                                            </div>
-                                        )
-                                    }))}
-                                    onSelect={field.onChange}
-                                    onSearch={setAgentSearch}
-                                    value={field.value}
-                                    placeholder="Select an agent"
-                                />
-                            </FormControl>
-                            <FormDescription>
-                                Not found what you&apos;re looking for?{" "}
-                                <button
-                                    type="button"
-                                    className="text-primary hover:underline"
-                                    onClick={() => setOpenNewAgentDialog(true)}
-                                >
-                                    Create new agent
-                                </button>
-                            </FormDescription>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                    <FormField
+                        name="name"
+                        control={form.control}
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Name</FormLabel>
+                                <FormControl>
+                                    <Input {...field} placeholder="e.g. Math Consultations" />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        name="agentId"
+                        control={form.control}
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Agent</FormLabel>
+                                <FormControl>
+                                    <CommandSelect
+                                        options={(agents.data?.items ?? []).map((agent) => ({
+                                            id: agent.id,
+                                            value: agent.id,
+                                            children: (
+                                                <div className="flex items-center gap-x-2">
+                                                    <GeneratedAvatar
+                                                        seed={agent.name}
+                                                        variant="botttsNeutral"
+                                                        className="border size-6"
+                                                    />
+                                                    <span>{agent.name}</span>
+                                                </div>
+                                            )
+                                        }))}
+                                        onSelect={field.onChange}
+                                        onSearch={setAgentSearch}
+                                        value={field.value}
+                                        placeholder="Select an agent"
+                                    />
+                                </FormControl>
+                                <FormDescription>
+                                    Not found what you&apos;re looking for?{" "}
+                                    <button
+                                        type="button"
+                                        className="text-primary hover:underline"
+                                        onClick={() => setOpenNewAgentDialog(true)}
+                                    >
+                                        Create new agent
+                                    </button>
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
 
-                <div className="flex justify-between gap-x-2">
-                    {onCancel && (
-                        <Button
-                            variant="ghost"
-                            disabled={isPending}
-                            type="button"
-                            onClick={() => onCancel()}
-                        >
-                            Cancel
+                    <div className="flex justify-between gap-x-2">
+                        {onCancel && (
+                            <Button
+                                variant="ghost"
+                                disabled={isPending}
+                                type="button"
+                                onClick={() => onCancel()}
+                            >
+                                Cancel
+                            </Button>
+                        )}
+                        <Button disabled={isPending} type="submit">
+                            {isEdit ? "Update" : "Create"}
                         </Button>
-                    )}
-                    <Button disabled={isPending} type="submit">
-                        {isEdit ? "Update" : "Create"}
-                    </Button>
-                </div>
-            </form>
-        </Form >
+                    </div>
+                </form>
+            </Form >
         </>
     )
 }

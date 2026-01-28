@@ -37,9 +37,11 @@ export const MeetingIdView = ({ meetingId }: Props) => {
 
     const removeMeeting = useMutation(
         trpc.meetings.remove.mutationOptions({
-            onSuccess: () => {
-                queryClient.invalidateQueries(trpc.meetings.getMany.queryOptions({}))
-                // todo: invalidate free tier usage
+            onSuccess: async () => {
+                await queryClient.invalidateQueries(trpc.meetings.getMany.queryOptions({}))
+                await queryClient.invalidateQueries(
+                    trpc.premium.getFreeUsage.queryOptions()
+                )
                 router.push("/meetings")
             },
             onError: (_error) => {
@@ -79,14 +81,14 @@ export const MeetingIdView = ({ meetingId }: Props) => {
                     onEdit={() => setUpdateMeetingDialogOpen(true)}
                     onRemove={handleRemoveMeeting}
                 />
-                {isCancelled && <CancelledState/>}
-                {isProcessing && <ProcessingState/>}
-                {isCompleted && <CompletedState data={data}/>}
-                {isActive && <ActiveState meetingId={meetingId}/>}
+                {isCancelled && <CancelledState />}
+                {isProcessing && <ProcessingState />}
+                {isCompleted && <CompletedState data={data} />}
+                {isActive && <ActiveState meetingId={meetingId} />}
                 {isUpcoming && (<UpcomingState
-                meetingId={meetingId}
-                onCancelMeeting={()=>{}}
-                isCancelling={false}
+                    meetingId={meetingId}
+                    onCancelMeeting={() => { }}
+                    isCancelling={false}
                 />)}
             </div>
         </>
