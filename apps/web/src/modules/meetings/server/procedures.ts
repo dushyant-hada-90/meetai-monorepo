@@ -1,15 +1,104 @@
 import { db } from "@/db"
-import { agents, meetings } from "@/db/schema"
+import { agents, meetings, TranscriptItem, user } from "@/db/schema"
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init"
 import { TRPCError } from "@trpc/server"
 import { z } from "zod"
-import { and, count, desc, eq, getTableColumns, ilike, sql } from "drizzle-orm"
+import { and, count, desc, eq, getTableColumns, ilike, inArray, sql } from "drizzle-orm"
 import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MIN_PAGE_SIZE } from "@/constants"
 import { meetingsInsertSchema, meetingsUpdateSchema } from "../schemas"
 import { MeetingStatus } from "../types"
 import { generateLivekitToken } from "@/lib/stream-video"
+import { formatDuration } from "@/lib/utils"
 
 export const meetingsRouter = createTRPCRouter({
+    getTranscript: protectedProcedure
+        .input(z.object({ id: z.string() }))
+        .query(async ({ input, ctx }) => {
+            const [existingMeeting] = await db
+                .select()
+                .from(meetings)
+                .where(
+                    and(
+                        eq(meetings.id, input.id),
+                        eq(meetings.userId, ctx.auth.user.id)
+                    )
+                )
+
+            if (!existingMeeting) {
+                throw new TRPCError({
+                    code: "NOT_FOUND",
+                    message: "Meeting not found",
+                })
+            }
+
+            if (!existingMeeting.transcript || existingMeeting.transcript.length === 0) {
+                return []
+            }
+
+            const transcript = existingMeeting.transcript as TranscriptItem[]
+
+            /* -------------------------------
+               Resolve agent
+            -------------------------------- */
+            const [agent] = await db
+                .select({ id: agents.id, name: agents.name })
+                .from(agents)
+                .where(eq(agents.id, existingMeeting.agentId))
+
+            /* -------------------------------
+               Resolve all user IDs in transcript
+            -------------------------------- */
+            const userIds = Array.from(
+                new Set(
+                    transcript
+                        .filter(t => t.role !== "assistant") 
+                        .map(t => t.speaker)                
+                )
+            );
+
+            const usersMap = new Map<
+                string,
+                { name: string; image?: string | null }
+            >()
+
+            if (userIds.length > 0) {
+                const fetchedUsers = await db
+                    .select({
+                        id: user.id,
+                        name: user.name,
+                        image: user.image,
+                    })
+                    .from(user)
+                    .where(inArray(user.id, userIds))
+
+                for (const user of fetchedUsers) {
+                    usersMap.set(user.id, {
+                        name: user.name,
+                        image: user.image,
+                    })
+                }
+            }
+
+
+
+            /* -------------------------------
+               Final transformed transcript
+            -------------------------------- */
+            return transcript.map(entry => {
+                const isAssistant = entry.role === "assistant"
+                const user = !isAssistant ? usersMap.get(entry.speaker) : null
+
+                return {
+                    ...entry,
+                    speaker: isAssistant
+                        ? agent?.name ?? "Assistant"
+                        : user?.name ?? "Unknown User",
+
+                    image: isAssistant ? undefined : user?.image ?? undefined,
+                }
+            })
+
+        }),
     generateToken: protectedProcedure
         .input(z.object({ roomName: z.string() }))
         .mutation(async ({ ctx, input }) => {

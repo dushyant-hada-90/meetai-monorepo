@@ -8,6 +8,7 @@ import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { formatDuration } from "@/lib/utils"
 import Markdown from "react-markdown"
+import { Transcript } from "./transcript"
 
 interface Props {
     data: MeetingGetOne
@@ -42,6 +43,12 @@ export const CompletedState = ({ data }: Props) => {
                         <ScrollBar orientation="horizontal" />
                     </ScrollArea>
                 </div>
+                <TabsContent value="transcript">
+                    <Transcript meetingId={data.id}/>
+                </TabsContent>
+                <TabsContent value="chat">
+                    <h1>TODO</h1>
+                </TabsContent>
                 <TabsContent value="summary">
                     <div className="bg-white rounded-lg border">
                         <div className="px-4 py-5 gap-y-5 flex flex-col span-5">

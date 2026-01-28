@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { db } from '@/db';
 import { and, eq, not } from 'drizzle-orm';
-import { agents, meetings, TranscriptItem, UserId } from '@/db/schema';
+import { AgentId, agents, meetings, TranscriptItem, UserId } from '@/db/schema';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { inngest } from "@/inngest/client";
 dotenv.config({ path: '.env.local' });
@@ -42,6 +42,7 @@ export default defineAgent({
     // Adjusted type to match your schema's TranscriptItem (using number for time to match Date.now())
     const transcript: TranscriptItem[] = [];
     let agentName = "MeetAi Assistant";
+    let agentId: AgentId = ""
     let meetingTitle = "General Meeting";
     let contextData = "No specific context available.";
     let customInstructions = "You are a helpful assistant.";
@@ -74,6 +75,7 @@ export default defineAgent({
           .where(eq(meetings.id, existingMeeting.id));
 
         if (existingMeeting.agentId) {
+          agentId = existingMeeting.agentId
           const [existingAgent] = await db
             .select()
             .from(agents)
@@ -128,7 +130,7 @@ export default defineAgent({
       
       Your Core Instructions:
       ${customInstructions}
-      default language is english and sometimes hindi , no other language should be used neither in audio nor in chat transcripts
+      default language is english, no other language should be used neither in audio nor in chat transcripts
       
       Context for this meeting:
       ${contextData}
@@ -146,10 +148,12 @@ export default defineAgent({
       const text = event.item.textContent;
       if (!text) return;
 
-      let assignedRole: UserId | "assistant" = "assistant";
+      let assignedRole: "human" | "assistant" = "assistant";
+      let speaker: UserId | AgentId = "unknown"
 
       if (event.item.role === 'assistant') {
         assignedRole = "assistant";
+        speaker = agentId || "unknown"
       } else {
         // Look at the session to see who was just speaking
         // In most versions of @livekit/agents, the session tracks the 'last_user_id'
@@ -158,13 +162,16 @@ export default defineAgent({
 
         // In a 1-on-1, the first remote participant is the user.
         // In a multi-user meeting, we use the identity from the room's remote participants:
-        assignedRole = (activeSpeaker?.identity as UserId) || "unknown_user";
+        // assignedRole = (activeSpeaker?.identity as UserId) || "unknown_user";
+        assignedRole = "human";
+        speaker = (activeSpeaker?.identity as UserId) || "unknownUser"
       }
 
       const timestamp = Date.now();
 
       transcript.push({
         role: assignedRole,
+        speaker,
         text: text,
         time: timestamp
       });
