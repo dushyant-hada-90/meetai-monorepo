@@ -23,15 +23,16 @@ interface TokenRequest {
 
 export const generateLivekitToken = async (body: TokenRequest) => {
   // server.js or where you create roomService
-const apiKey = process.env.LIVEKIT_API_KEY || "MISSING";
-const apiSecret = process.env.LIVEKIT_API_SECRET || "MISSING";
+const key = process.env.LIVEKIT_API_KEY || "";
+const secret = process.env.LIVEKIT_API_SECRET || "";
+const url = process.env.LIVEKIT_API_URL || "";
 
-console.log("--- VERCEL ENV DEBUG ---");
-console.log(`API Key Length: ${apiKey.length}`);
-console.log(`API Key First Char: '${apiKey[0]}'`);
-console.log(`API Key Last Char: '${apiKey[apiKey.length - 1]}'`); // Check for space or quote
-console.log(`Is Corrupted? ${apiKey.includes('"') ? "YES (Has Quotes)" : "NO"}`);
-console.log("------------------------");
+console.log("--- VERCEL AUTH DEBUG ---");
+console.log(`URL: ${url}`);
+console.log(`Key First/Last: ${key[0]}...${key[key.length-1]}`);
+console.log(`Secret Length: ${secret.length}`);
+console.log(`Secret Corrupted? ${secret.includes('"') || secret.includes(" ") ? "YES" : "NO"}`);
+console.log("-------------------------");
 
   const roomName = body.room_name ?? 'quickstart-room';
   const participantIdentity = body.participant_identity ?? 'quickstart-identity';
