@@ -11,10 +11,9 @@ import {
   useRoomContext,
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState } from "react";
 import "@livekit/components-styles";
 import { CallEnded } from "./call-ended";
-import { useDataChannel } from '@livekit/components-react';
 // import { useTRPC } from "@/trpc/client"; // Keep if you use it
 
 /* ---------------- Agent Status ---------------- */

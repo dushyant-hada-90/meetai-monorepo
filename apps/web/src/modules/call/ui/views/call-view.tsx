@@ -22,22 +22,15 @@ export const CallView = ({ meetingId }: Props) => {
         { id: meetingId }
     ))
 
-    if (data.status === "completed") {
-        return (
-            <div className="flex h-screen items-center justify-center">
-                <ErrorState
-                    title="Meeting has ended"
-                    description="You can no longer join this meeting"
-                />
-            </div>
-        )
-    }
- 
+    const meetingEnded = data.status === "completed";
+
     const { mutateAsync: generateToken } = useMutation(
         trpc.meetings.generateToken.mutationOptions(),
     );
 
     useEffect(() => {
+        if (meetingEnded) return;
+
         const fetchToken = async () => {
             try {
                 // Ensure the payload matches what your tRPC router expects
@@ -49,7 +42,18 @@ export const CallView = ({ meetingId }: Props) => {
         };
 
         fetchToken();
-    }, [generateToken, meetingId]);
+    }, [generateToken, meetingEnded, meetingId]);
+
+    if (meetingEnded) {
+        return (
+            <div className="flex h-screen items-center justify-center">
+                <ErrorState
+                    title="Meeting has ended"
+                    description="You can no longer join this meeting"
+                />
+            </div>
+        )
+    }
 
     
 

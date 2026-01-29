@@ -19,9 +19,9 @@ const summarizer = createAgent({
     ### Notes
     Break down key content into thematic sections with timestamp ranges (e.g., 05:00 - 10:00).
   `.trim(),
-  model: gemini({ 
-    model: "gemini-2.5-flash", 
-    apiKey: process.env.GOOGLE_API_KEY 
+  model: gemini({
+    model: "gemini-2.5-flash",
+    apiKey: process.env.GOOGLE_API_KEY
   })
 });
 
@@ -37,27 +37,28 @@ export const meetingsProcessing = inngest.createFunction(
   { id: "meetings/processing" },
   { event: "meetings/processing" },
   async ({ event, step }) => {
-    const { meetingId } = event.data;
+    const { meetingId, transcript } = event.data;
 
-    // --- STEP 1: Fetch Meeting Data ---
-    const meeting = await step.run("fetch-meeting", async () => {
-      const [row] = await db
-        .select()
-        .from(meetings)
-        .where(eq(meetings.id, meetingId));
-      return row;
-    });
+    // --- STEP 1: update Meeting Data ---
+    await step.run("mark-processing", async () => {
+    await db.update(meetings)
+      .set({
+        transcript: transcript,
+        status: "processing",
+      })
+      .where(eq(meetings.id, meetingId));
 
-    if (!meeting) throw new Error(`Meeting ${meetingId} not found`);
+    console.log("DB Updated: Meeting status set to processing and saved transcript array.");
+    })
 
     // --- STEP 2: Resolve Speaker Names & Format Transcript ---
     const formattedTranscript = await step.run("format-transcript", async () => {
-      const rawTranscript = meeting.transcript as TranscriptItem[];
+      const rawTranscript = transcript as TranscriptItem[];
       if (!rawTranscript || rawTranscript.length === 0) return "";
 
       // 1. Collect unique IDs for Users and Agents
       const speakerIds = Array.from(new Set(rawTranscript.map((t) => t.speaker)));
-      
+
       // 2. Fetch User and Agent names in parallel
       const [users, agentRows] = await Promise.all([
         db.select({ id: userTable.id, name: userTable.name })
@@ -80,13 +81,13 @@ export const meetingsProcessing = inngest.createFunction(
       return rawTranscript.map((item) => {
         const relativeMs = Math.max(0, item.time - startRef);
         const timestamp = formatRelativeTime(relativeMs);
-        
+
         // Resolve name based on role and speaker ID
         let speakerName = "Unknown User";
         if (item.role === "assistant") {
-            speakerName = nameMap.get(item.speaker) ?? "Assistant";
+          speakerName = nameMap.get(item.speaker) ?? "Assistant";
         } else {
-            speakerName = nameMap.get(item.speaker) ?? "User";
+          speakerName = nameMap.get(item.speaker) ?? "User";
         }
 
         return `[${timestamp}] ${speakerName}: ${item.text}`;
@@ -111,10 +112,11 @@ export const meetingsProcessing = inngest.createFunction(
         .set({
           summary: aiResponse as string,
           status: "completed",
-          endedAt: new Date(),
+          endedAt: new Date().toISOString(),
         })
-        .where(eq(meetings.id, meetingId));
+        .where(eq(meetings.id, meetingId)).returning();
     });
+    
 
     return { success: true };
   }

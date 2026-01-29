@@ -44,8 +44,8 @@ export const MeetingIdView = ({ meetingId }: Props) => {
                 )
                 router.push("/meetings")
             },
-            onError: (_error) => {
-                // console.error(_error)
+            onError: () => {
+                // console.error(error)
                 toast.error("unknown error occured")
             }
         })

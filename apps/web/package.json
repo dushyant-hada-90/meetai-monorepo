@@ -11,7 +11,8 @@
     "db:studio": "drizzle-kit studio",
     "dev:webhook": "https://invadable-joni-unprefixally.ngrok-free.dev",
     "better-auth": "powershell -ExecutionPolicy Bypass -File scripts/better-auth.ps1",
-    "livekit-agent": "npx tsx src/lib/agent.ts dev"
+    "lk-agent": "npx tsx src/lib/agent.ts dev",
+    "inngest": "npx inngest-cli@latest dev"
   },
   "dependencies": {
     "@dicebear/collection": "^9.2.4",

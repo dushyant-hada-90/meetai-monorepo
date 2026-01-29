@@ -14,7 +14,7 @@ interface Props {
     onSearch?: (value: string) => void
     value: string
     placeholder?: string
-    isSearchable?: boolean
+    // isSearchable?: boolean
     className?: string
 }
 
@@ -24,7 +24,7 @@ export const CommandSelect = ({
     onSearch,
     value,
     placeholder = "Select an option",
-    isSearchable,
+    // isSearchable,
     className,
 }: Props) => {
     const [open, setOpen] = useState(false)

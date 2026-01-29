@@ -5,8 +5,6 @@ import { TRPCReactProvider } from "@/trpc/client";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import { createTRPCContext } from "@trpc/tanstack-react-query";
-import { redirect } from "next/navigation";
 
 const inter = Inter({
   variable: "--font-geist-sans",
