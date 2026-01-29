@@ -1,15 +1,11 @@
-import { auth } from "@/lib/auth"
 import { AgentsView, AgentsViewError, AgentsViewLoading } from "@/modules/agents/ui/views/agents-view"
 import { AgentsListHeader } from "@/modules/agents/ui/components/agents-list-header"
 import { getQueryClient, trpc } from "@/trpc/server"
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
-import { headers } from "next/headers"
-import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { ErrorBoundary } from "react-error-boundary"
 import { SearchParams } from "nuqs"
 import { loadSearchParams } from "@/modules/agents/params"
-import { createTRPCContext } from "@/trpc/init"
 
 interface Props {
   searchParams: Promise<SearchParams>

@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+// this file has no significance in this repo , it is actually used in meetai-agent repo for production
+// here it exist for read only purposes
 import 'dotenv/config';
 import {
   type JobContext,
@@ -31,6 +34,7 @@ class Assistant extends voice.Agent {
 
 export default defineAgent({
   entry: async (ctx: JobContext) => {
+    console.log("-----------------", ctx, "----------------------")
     await ctx.connect();
     const meetingId = ctx.room.name;
 
@@ -40,86 +44,47 @@ export default defineAgent({
     }
     console.log(`Current Meeting ID: ${meetingId}`);
 
+    let currentMeeting = null;
+    let currentAgent = null;
+
+    if (ctx.room.metadata) {
+      try {
+        // Parse the string back into an object
+        const data = JSON.parse(ctx.room.metadata);
+        // DESTRUCTURE HERE
+        // You can extract the nested objects directly
+        const { meetingData, agentData } = data;
+
+        currentMeeting = meetingData;
+        currentAgent = agentData;
+
+        console.log(`[DEBUG] Meeting ID: ${currentMeeting.id}`);
+        console.log(`[DEBUG] Agent Name: ${currentAgent.name}`);
+
+      } catch (e) {
+        console.error("Failed to parse metadata", e);
+      }
+    }
+
+
+
     // Adjusted type to match your schema's TranscriptItem (using number for time to match Date.now())
     const transcript: TranscriptItem[] = [];
-    let agentName = "MeetAi Assistant";
-    let agentId: AgentId = ""
-    let meetingTitle = "General Meeting";
-    let contextData = "No specific context available.";
-    let customInstructions = "You are a helpful assistant.";
 
-    try {
-      const [existingMeeting] = await db
-        .select()
-        .from(meetings)
-        .where(
-          and(
-            eq(meetings.id, meetingId),
-            not(eq(meetings.status, "completed")),
-            not(eq(meetings.status, "processing")),
-            not(eq(meetings.status, "cancelled")),
-          )
-        );
 
-      if (!existingMeeting) {
-        console.warn(`Meeting ${meetingId} not found or invalid status.`);
-      } else {
-        meetingTitle = existingMeeting.name || meetingTitle;
-        contextData = existingMeeting.summary || contextData;
-
-        await db
-          .update(meetings)
-          .set({
-            status: "active",
-            startedAt: new Date()
-          })
-          .where(eq(meetings.id, existingMeeting.id));
-
-        if (existingMeeting.agentId) {
-          agentId = existingMeeting.agentId
-          const [existingAgent] = await db
-            .select()
-            .from(agents)
-            .where(eq(agents.id, existingMeeting.agentId));
-
-          if (existingAgent) {
-            agentName = existingAgent.name;
-            customInstructions = existingAgent.instructions || customInstructions;
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch meeting/agent context:", error);
-    }
 
     // ---------------------------------------------------------
     // STEP 3: Handle Meeting End (Summary & Cleanup)
     // ---------------------------------------------------------
     ctx.addShutdownCallback(async () => {
-      console.log(`Resource cleanup: Marking meeting ${meetingId} as completed.`);
+      console.log(`Resource cleanup: Marking meeting ${meetingId} as processing.`);
 
       try {
-        await db.update(meetings)
-          .set({
-            transcript: transcript,
-            status: "processing",
-          })
-          .where(eq(meetings.id, meetingId));
-
-        console.log("DB Updated: Meeting status set to processing and saved transcript array.");
-        // const queryClient = useQueryClient()
-        // const trpc = useTRPC()
-        // await queryClient.invalidateQueries(
-        //   trpc.meetings.getMany.queryOptions({})
-        // )
-        // await queryClient.invalidateQueries(
-        //   trpc.meetings.getOne.queryOptions({id:meetingId})
-        // )
-
         await inngest.send({
           name: "meetings/processing", // This MUST match the event name in your inngest function
           data: {
-            meetingId: meetingId
+            meetingId: meetingId,
+            transcript,
           }
         });
 
@@ -133,16 +98,12 @@ export default defineAgent({
     // STEP 4: Configure Agent
     // ---------------------------------------------------------
     const finalInstructions = `
-      You are a helpful voice AI assistant named ${agentName}.
-      The current meeting name is "${meetingTitle}".
-      You are currently participating in a meeting with ID: ${meetingId}.
+      You are a helpful voice AI assistant named ${currentAgent.name}.
+      The current meeting name is "${currentMeeting.name}".
       
       Your Core Instructions:
-      ${customInstructions}
+      ${currentAgent.instrutions}
       default language is english, no other language should be used neither in audio nor in chat transcripts
-      
-      Context for this meeting:
-      ${contextData}
 
       Please keep your responses concise and professional.
     `;
@@ -162,7 +123,7 @@ export default defineAgent({
 
       if (event.item.role === 'assistant') {
         assignedRole = "assistant";
-        speaker = agentId || "unknown"
+        speaker = currentAgent.id || "unknown"
       } else {
         // Look at the session to see who was just speaking
         // In most versions of @livekit/agents, the session tracks the 'last_user_id'
@@ -197,7 +158,7 @@ export default defineAgent({
     });
 
     await session.start({
-      agent: new Assistant(agentName, finalInstructions),
+      agent: new Assistant(currentAgent.name, finalInstructions),
       room: ctx.room,
       inputOptions: {
         noiseCancellation: BackgroundVoiceCancellation(),
@@ -211,7 +172,7 @@ export default defineAgent({
     console.log("-------------------- Agent Started ------------------------------");
 
     const handle = session.generateReply({
-      instructions: `Greet the user as ${agentName}. Mention that you are ready for the "${meetingTitle}" meeting.`,
+      instructions: `Greet the user as ${currentAgent.name}. Mention that you are ready for the "${currentMeeting.name}" meeting.`,
     });
 
     await handle.waitForPlayout();

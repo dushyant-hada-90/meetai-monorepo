@@ -1,4 +1,3 @@
-import { Reference } from "drizzle-orm/gel-core";
 import { pgTable, text, timestamp, boolean, pgEnum, jsonb } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid"
 
@@ -93,8 +92,8 @@ export const meetings = pgTable("meetings", {
     .notNull()
     .references(() => agents.id, { onDelete: "cascade" }),
   status: meetingStatus("status").notNull().default("upcoming"),
-  startedAt: timestamp("started_at"),
-  endedAt: timestamp("ended_at"),
+  startedAt: timestamp("started_at",{ mode: "string" }),
+  endedAt: timestamp("ended_at",{ mode: "string" }),
   transcript: jsonb("transcript")
     .$type<TranscriptItem[]>()
     .notNull()

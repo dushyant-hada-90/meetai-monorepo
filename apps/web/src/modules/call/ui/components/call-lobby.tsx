@@ -1,13 +1,6 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-import { usePersistentUserChoices } from "@livekit/components-react"
-import { LogInIcon, Video, VideoOff, Mic, MicOff, X } from "lucide-react"
-import { useEffect, useState, useRef } from "react"
-import { createLocalVideoTrack, createLocalAudioTrack, LocalVideoTrack, LocalAudioTrack } from "livekit-client"
-import Link from "next/link"
-
-import { ParticipantTile } from "@livekit/components-react";
+import { useEffect, useRef, useState } from "react"
 
 interface Props {
     onJoin: (opts: { audio: boolean; video: boolean }) => void
@@ -36,18 +29,19 @@ export const CallLobby = ({ onJoin }: Props) => {
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
             }
-
             setCameraError(null);
             setCameraOn(true);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("startCamera error:", err);
-            if (err && err.name === 'NotAllowedError') {
-                setCameraError('Camera access was denied. Please allow camera permissions.');
-            } else if (err && err.name === 'NotFoundError') {
-                setCameraError('No camera device found.');
+
+            if (err instanceof DOMException && err.name === "NotAllowedError") {
+                setCameraError("Camera access was denied. Please allow camera permissions.");
+            } else if (err instanceof DOMException && err.name === "NotFoundError") {
+                setCameraError("No camera device found.");
             } else {
-                setCameraError('Unable to access camera.');
+                setCameraError("Unable to access camera.");
             }
+
             setCameraOn(false);
         }
     }
@@ -58,15 +52,17 @@ export const CallLobby = ({ onJoin }: Props) => {
             audioStreamRef.current = stream;
             setMicError(null);
             setMicOn(true);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("startMic error:", err);
-            if (err && err.name === 'NotAllowedError') {
-                setMicError('Microphone access was denied. Please allow microphone permissions.');
-            } else if (err && err.name === 'NotFoundError') {
-                setMicError('No microphone device found.');
+
+            if (err instanceof DOMException && err.name === "NotAllowedError") {
+                setMicError("Microphone access was denied. Please allow microphone permissions.");
+            } else if (err instanceof DOMException && err.name === "NotFoundError") {
+                setMicError("No microphone device found.");
             } else {
-                setMicError('Unable to access microphone.');
+                setMicError("Unable to access microphone.");
             }
+
             setMicOn(false);
         }
     }

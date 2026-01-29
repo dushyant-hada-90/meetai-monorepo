@@ -8,7 +8,6 @@ import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MIN_PAGE_SIZE } from "@
 import { meetingsInsertSchema, meetingsUpdateSchema } from "../schemas"
 import { MeetingStatus } from "../types"
 import { generateLivekitToken } from "@/lib/stream-video"
-import { formatDuration } from "@/lib/utils"
 
 export const meetingsRouter = createTRPCRouter({
     getTranscript: protectedProcedure
@@ -102,11 +101,13 @@ export const meetingsRouter = createTRPCRouter({
     generateToken: protectedProcedure
         .input(z.object({ roomName: z.string() }))
         .mutation(async ({ ctx, input }) => {
+            const instructions = "dummy instructions"
             const token = await generateLivekitToken(
                 {
                     room_name: input.roomName,
                     participant_identity: ctx.auth.user.id,
-                    participant_name: ctx.auth.user.name
+                    participant_name: ctx.auth.user.name,
+                    participant_attributes: { instructions }
                 }
             )
             const url = process.env.NEXT_PUBLIC_LIVEKIT_URL
