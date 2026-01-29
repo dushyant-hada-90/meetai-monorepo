@@ -1,10 +1,10 @@
 import { db } from "@/db"
-import { agents } from "@/db/schema"
+import { agents, meetings } from "@/db/schema"
 import { createTRPCRouter, premiumProcedure, protectedProcedure } from "@/trpc/init"
 import { TRPCError } from "@trpc/server"
 import { agentsInsertSchema, agentsUpdateSchema } from "../schemas"
 import { z } from "zod"
-import { and, count, desc, eq, ilike } from "drizzle-orm"
+import { and, count, desc, eq, getTableColumns, ilike } from "drizzle-orm"
 import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MIN_PAGE_SIZE } from "@/constants"
 
 export const agentsRouter = createTRPCRouter({
@@ -54,7 +54,10 @@ export const agentsRouter = createTRPCRouter({
 
     getOne: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ input, ctx }) => {
         const [existingAgent] = await db
-            .select()
+            .select({
+                meetingCount: db.$count(meetings, eq(agents.id, meetings.agentId)),
+                ...getTableColumns(agents),
+            })
             .from(agents)
             .where(and(
                 eq(agents.id, input.id),
@@ -78,7 +81,10 @@ export const agentsRouter = createTRPCRouter({
         .query(async ({ ctx, input }) => {
             const { search, page, pageSize } = input
             const data = await db
-                .select()
+                .select({
+                    meetingCount: db.$count(meetings, eq(agents.id, meetings.agentId)),
+                    ...getTableColumns(agents),
+                })
                 .from(agents)
                 .where(
                     and(
