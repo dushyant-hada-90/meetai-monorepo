@@ -37,7 +37,7 @@ export const meetingsProcessing = inngest.createFunction(
   { id: "livekit/room_finished" },
   { event: "livekit/room_finished" },
   async ({ event, step }) => {
-    const { meetingId } = event.data;
+    const { meetingId ,startedAt,endedAt} = event.data;
     // await step.sleep("wait-for-processing", "10s");
 
     // 2. Generate a token with Analytics (roomList) permissions
@@ -81,6 +81,8 @@ export const meetingsProcessing = inngest.createFunction(
       const [meeting] = await db.update(meetings)
         .set({
           status: "processing",
+          startedAt:startedAt,
+          endedAt:endedAt,
         })
         .where(eq(meetings.id, meetingId))
         .returning();
@@ -153,7 +155,6 @@ export const meetingsProcessing = inngest.createFunction(
           summary: aiResponse as string,
           transcript:meeting.transcript,
           status: "completed",
-          endedAt: new Date().toISOString(),
         })
         .where(eq(meetings.id, meetingId)).returning();
     });

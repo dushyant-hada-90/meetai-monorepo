@@ -35,8 +35,9 @@ export async function POST(req: NextRequest) {
             await inngest.send({
                 name: "livekit/room_finished",
                 data: {
-                    roomSid: event.room?.sid,
                     meetingId: event.room?.name, // Assuming meetingName/Id is passed here
+                    startedAt:event.room?.creationTime,
+                    endedAt:event.createdAt // this is the time when webhook was cereated which marks the end of meeting
                 },
             });
         }
