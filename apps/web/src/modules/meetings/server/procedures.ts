@@ -26,7 +26,12 @@ export const meetingsRouter = createTRPCRouter({
                 .set({
                     transcript: sql`COALESCE(${meetings.transcript}, '[]'::jsonb) || ${JSON.stringify([input.line])}::jsonb`,
                 })
-                .where(eq(meetings.id, input.meetingId));
+                .where(
+                    and(
+                        eq(meetings.id, input.meetingId),
+                        eq(meetings.userId, ctx.auth.user.id),
+                    )
+                );
 
             return { success: true };
         }),

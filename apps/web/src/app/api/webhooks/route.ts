@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     console.log("Webhook hit!")
     // 1. Get the raw body as text (required for signature validation)
     const body = await req.text();
-    console.log(body)
+    // console.log(body)
 
     // 2. Get the Authorization header (the signed JWT)
     const headerList = headers();
@@ -43,8 +43,8 @@ export async function POST(req: NextRequest) {
 
         // 5. Always return a 200 OK to LiveKit so it stops retrying
         return NextResponse.json({ received: true }, { status: 200 });
-    } catch (error: any) {
-        console.error("Webhook validation failed:", error.message);
+    } catch (error) {
+        console.error("Webhook validation failed:", error);
         return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 }

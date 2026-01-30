@@ -86,7 +86,7 @@ export const meetingsProcessing = inngest.createFunction(
         .returning();
 
       // console.log("DB Updated: Meeting status set to processing and saved transcript array.");
-      meeting.transcript.sort((a: any, b: any) => a.timestamp - b.timestamp)
+      meeting.transcript.sort((a, b) => a.timestamp - b.timestamp)
       // console.log("sorted transcript")
       return meeting;
     });

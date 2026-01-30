@@ -23,9 +23,9 @@ interface TokenRequest {
 
 export const generateLivekitToken = async (body: TokenRequest) => {
   // server.js or where you create roomService
-const key = process.env.LIVEKIT_API_KEY || "";
-const secret = process.env.LIVEKIT_API_SECRET || "";
-const url = process.env.LIVEKIT_URL || "";
+// const key = process.env.LIVEKIT_API_KEY || "";
+// const secret = process.env.LIVEKIT_API_SECRET || "";
+// const url = process.env.LIVEKIT_URL || "";
 
 // console.log("--- VERCEL AUTH DEBUG ---");
 // console.log(`URL: ${url}`);
@@ -95,7 +95,7 @@ const url = process.env.LIVEKIT_URL || "";
   } catch (e) {
     // If room already exists, we might want to update it just in case
     // typically createRoom is idempotent regarding existence, but updates metadata
-    // console.log("Room might already exist or service error", e);
+    console.log("Room might already exist or service error", e);
   }
 
   // ---------------------------------------------------------
