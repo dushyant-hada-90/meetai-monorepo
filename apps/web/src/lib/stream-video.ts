@@ -52,30 +52,25 @@ export const generateLivekitToken = async (body: TokenRequest) => {
       select()
       .from(meetings)
       .where(
-        and(
-          eq(meetings.id, roomName),
-          eq(meetings.userId, participantIdentity),
-        )
-      )
-    const [agentData] = await db.
-      select()
-      .from(agents)
-      .where(
-        and(
-          eq(agents.id, meetingData.agentId),
-          eq(agents.userId, participantIdentity),
-        )
-      )
-
-
+        eq(meetings.id, roomName)
+      );
 
     if (meetingData) {
-      // Construct the context object your Agent expects
-      const contextData = {
-        meetingData,
-        agentData
-      };
-      roomMetadata = JSON.stringify(contextData);
+      const [agentData] = await db.
+        select()
+        .from(agents)
+        .where(
+          eq(agents.id, meetingData.agentId)
+        );
+
+      if (agentData) {
+        // Construct the context object your Agent expects
+        const contextData = {
+          meetingData,
+          agentData
+        };
+        roomMetadata = JSON.stringify(contextData);
+      }
     }
   } catch (error) {
     console.error("Failed to fetch meeting context:", error);
