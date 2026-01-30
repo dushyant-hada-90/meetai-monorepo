@@ -70,16 +70,15 @@ export const meetingStatus = pgEnum("meeting_status", [
 ])
 
 
-export type UserId = typeof user.$inferSelect.id;
-export type AgentId = typeof agents.$inferSelect.id;
+export type AgentId = string;
+export type UserId = string;
 
 export interface TranscriptItem {
-  role: "human" | "assistant"; 
-  speaker:AgentId|UserId|"unknownUser"
+  role: "human" | "assistant";
+  speaker: AgentId | UserId | "unknownUser";
   text: string;
-  time: number; // Storing Date.now()
+  timestamp: number; // Changed 'time' to 'timestamp' to match your previous code
 }
-
 export const meetings = pgTable("meetings", {
   id: text("id")
     .primaryKey()

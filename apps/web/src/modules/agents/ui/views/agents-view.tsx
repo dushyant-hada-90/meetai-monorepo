@@ -4,7 +4,6 @@ import { useSuspenseQuery } from "@tanstack/react-query"
 
 import { useTRPC } from "@/trpc/client"
 
-import React from 'react'
 import { LoadingState } from "@/components/loading-state"
 import { ErrorState } from "@/components/error-state"
 import { columns } from "../components/columns"
@@ -17,7 +16,7 @@ import { DataTable } from "@/components/data-table"
 export const AgentsView = () => {
   const router = useRouter()
   const [filters, setFilters] = useAgentsFilters()
-  console.log(filters)
+  // console.log(filters)
   const trpc = useTRPC()
   const { data } = useSuspenseQuery(trpc.agents.getMany.queryOptions({
     ...filters

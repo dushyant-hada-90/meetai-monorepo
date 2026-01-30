@@ -73,7 +73,7 @@ export const CallView = ({ meetingId }: Props) => {
                     setJoined(true);
                 }}  />
             ) : (
-                <CallActive   meetingName={data.name}/>
+                <CallActive meetingId={meetingId}  meetingName={data.name}/>
             )}
         </LiveKitRoom>
     );

@@ -8,7 +8,7 @@ import { and, eq } from 'drizzle-orm';
 
 // Initialize the RoomService (needed to update room metadata)
 const roomService = new RoomServiceClient(
-  process.env.NEXT_PUBLIC_LIVEKIT_URL!,
+  process.env.LIVEKIT_URL!,
   process.env.LIVEKIT_API_KEY!,
   process.env.LIVEKIT_API_SECRET!
 );
@@ -25,14 +25,14 @@ export const generateLivekitToken = async (body: TokenRequest) => {
   // server.js or where you create roomService
 const key = process.env.LIVEKIT_API_KEY || "";
 const secret = process.env.LIVEKIT_API_SECRET || "";
-const url = process.env.LIVEKIT_API_URL || "";
+const url = process.env.LIVEKIT_URL || "";
 
-console.log("--- VERCEL AUTH DEBUG ---");
-console.log(`URL: ${url}`);
-console.log(`Key First/Last: ${key[0]}...${key[key.length-1]}`);
-console.log(`Secret Length: ${secret.length}`);
-console.log(`Secret Corrupted? ${secret.includes('"') || secret.includes(" ") ? "YES" : "NO"}`);
-console.log("-------------------------");
+// console.log("--- VERCEL AUTH DEBUG ---");
+// console.log(`URL: ${url}`);
+// console.log(`Key First/Last: ${key[0]}...${key[key.length-1]}`);
+// console.log(`Secret Length: ${secret.length}`);
+// console.log(`Secret Corrupted? ${secret.includes('"') || secret.includes(" ") ? "YES" : "NO"}`);
+// console.log("-------------------------");
 
   const roomName = body.room_name ?? 'quickstart-room';
   const participantIdentity = body.participant_identity ?? 'quickstart-identity';
@@ -89,13 +89,13 @@ console.log("-------------------------");
   try {
     await roomService.createRoom({
       name: roomName,
-      emptyTimeout: 10 * 60, // 10 minutes
+      emptyTimeout: 10, // 10 minutes
       metadata: roomMetadata, // <--- THIS is where we push the data
     });
   } catch (e) {
     // If room already exists, we might want to update it just in case
     // typically createRoom is idempotent regarding existence, but updates metadata
-    console.log("Room might already exist or service error", e);
+    // console.log("Room might already exist or service error", e);
   }
 
   // ---------------------------------------------------------
@@ -109,7 +109,12 @@ console.log("-------------------------");
     ttl: '10m',
   });
 
-  at.addGrant({ roomJoin: true, room: roomName });
+  at.addGrant({ 
+    roomJoin: true, 
+    room: roomName,
+    roomList: true,
+    roomAdmin:true,
+  });
   const token = await at.toJwt();
 
   return token;

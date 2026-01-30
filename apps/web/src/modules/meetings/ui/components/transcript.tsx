@@ -16,7 +16,7 @@ interface Props {
 export const Transcript = ({ meetingId }: Props) => {
     const trpc = useTRPC()
     const { data } = useQuery(trpc.meetings.getTranscript.queryOptions({ id: meetingId }))
-    console.log(data)
+    // console.log(data)
     const [searchQuery, setSearchQuery] = useState("")
 
     const filteredData = (data ?? []).filter((item) =>
@@ -56,7 +56,7 @@ export const Transcript = ({ meetingId }: Props) => {
                                     </Avatar>
                                     <p className="text-sm font-medium">{item.speaker}</p>
                                     <p className="text-sm text-blue-500 font-medium">
-                                        {format(new Date(item.time), "p")}
+                                        {format(new Date(item.timestamp), "p")}
                                     </p>
                                 </div>
                                 <Highlighter

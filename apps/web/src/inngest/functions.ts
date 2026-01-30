@@ -34,26 +34,66 @@ function formatRelativeTime(ms: number): string {
 }
 
 export const meetingsProcessing = inngest.createFunction(
-  { id: "meetings/processing" },
-  { event: "meetings/processing" },
+  { id: "livekit/room_finished" },
+  { event: "livekit/room_finished" },
   async ({ event, step }) => {
-    const { meetingId, transcript } = event.data;
+    const { meetingId } = event.data;
+    // await step.sleep("wait-for-processing", "10s");
 
-    // --- STEP 1: update Meeting Data ---
-    await step.run("mark-processing", async () => {
-    await db.update(meetings)
-      .set({
-        transcript: transcript,
-        status: "processing",
-      })
-      .where(eq(meetings.id, meetingId));
+    // 2. Generate a token with Analytics (roomList) permissions
+    // const analyticsToken = await step.run("generate-analytics-token", async () => {
+    //   const at = new AccessToken(
+    //     process.env.LIVEKIT_API_KEY,
+    //     process.env.LIVEKIT_API_SECRET,
+    //     { ttl: "15m" }
+    //   );
+    //   at.addGrant({ roomList: true }); // Required for Analytics API
+    //   return at.toJwt();
+    // });
 
-    console.log("DB Updated: Meeting status set to processing and saved transcript array.");
-    })
+    // data can be fetched directly if project has a paid plan
+    // const sessionData = await step.run("fetch-livekit-analytics", async () => {
+    //   const projectID = process.env.LIVEKIT_PROJECT_ID;
+    //   const url = `https://cloud-api.livekit.io/api/project/${projectID}/sessions/${roomSid}`;
+
+    //   const response = await fetch(url, {
+    //     method: 'GET',
+    //     headers: {
+    //       'Authorization': `Bearer ${analyticsToken}`,
+    //       'Accept': 'application/json',
+    //       'Content-Type': 'application/json'
+    //     },
+    //   });
+
+    //   if (!response.ok) {
+    //     // This will help you see if it's 401 (Auth) or 403 (Permissions)
+    //     const errorBody = await response.text();
+    //     throw new Error(`LiveKit API error: ${response.status} ${response.statusText} - ${errorBody}`);
+    //   }
+     
+    //   return response.json();
+    // });
+
+    // else on a free plan frontend will generate transcript and update db when calll is active and we will query db for it here
+
+    // --- STEP 1: update Meeting Data and then return the same ---
+    const meeting = await step.run("mark-processing", async () => {
+      const [meeting] = await db.update(meetings)
+        .set({
+          status: "processing",
+        })
+        .where(eq(meetings.id, meetingId))
+        .returning();
+
+      // console.log("DB Updated: Meeting status set to processing and saved transcript array.");
+      meeting.transcript.sort((a: any, b: any) => a.timestamp - b.timestamp)
+      // console.log("sorted transcript")
+      return meeting;
+    });
 
     // --- STEP 2: Resolve Speaker Names & Format Transcript ---
     const formattedTranscript = await step.run("format-transcript", async () => {
-      const rawTranscript = transcript as TranscriptItem[];
+      const rawTranscript = meeting.transcript as TranscriptItem[];
       if (!rawTranscript || rawTranscript.length === 0) return "";
 
       // 1. Collect unique IDs for Users and Agents
@@ -75,11 +115,11 @@ export const meetingsProcessing = inngest.createFunction(
 
       // 3. Determine start time for relative timestamps
       // We use the first message time as the baseline (00:00)
-      const startRef = rawTranscript[0].time;
+      const startRef = rawTranscript[0].timestamp;
 
       // 4. Transform into readable string
       return rawTranscript.map((item) => {
-        const relativeMs = Math.max(0, item.time - startRef);
+        const relativeMs = Math.max(0, item.timestamp - startRef);
         const timestamp = formatRelativeTime(relativeMs);
 
         // Resolve name based on role and speaker ID
@@ -111,12 +151,13 @@ export const meetingsProcessing = inngest.createFunction(
         .update(meetings)
         .set({
           summary: aiResponse as string,
+          transcript:meeting.transcript,
           status: "completed",
           endedAt: new Date().toISOString(),
         })
         .where(eq(meetings.id, meetingId)).returning();
     });
-    
+
 
     return { success: true };
   }

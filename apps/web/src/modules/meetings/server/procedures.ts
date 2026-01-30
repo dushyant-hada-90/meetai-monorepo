@@ -10,6 +10,26 @@ import { MeetingStatus } from "../types"
 import { generateLivekitToken } from "@/lib/stream-video"
 
 export const meetingsRouter = createTRPCRouter({
+    appendTranscript: protectedProcedure
+        .input(z.object({
+            meetingId: z.string(),
+            line: z.object({
+                role: z.enum(["human", "assistant"]),
+                speaker: z.string(), // Accepts the ID
+                text: z.string(),
+                timestamp: z.number(),
+            })
+        }))
+        .mutation(async ({ input, ctx }) => {
+            await db
+                .update(meetings)
+                .set({
+                    transcript: sql`COALESCE(${meetings.transcript}, '[]'::jsonb) || ${JSON.stringify([input.line])}::jsonb`,
+                })
+                .where(eq(meetings.id, input.meetingId));
+
+            return { success: true };
+        }),
     getTranscript: protectedProcedure
         .input(z.object({ id: z.string() }))
         .query(async ({ input, ctx }) => {
@@ -101,13 +121,11 @@ export const meetingsRouter = createTRPCRouter({
     generateToken: protectedProcedure
         .input(z.object({ roomName: z.string() }))
         .mutation(async ({ ctx, input }) => {
-            const instructions = "dummy instructions"
             const token = await generateLivekitToken(
                 {
                     room_name: input.roomName,
                     participant_identity: ctx.auth.user.id,
                     participant_name: ctx.auth.user.name,
-                    participant_attributes: { instructions }
                 }
             )
             const url = process.env.NEXT_PUBLIC_LIVEKIT_URL
