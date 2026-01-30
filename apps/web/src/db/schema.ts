@@ -91,8 +91,8 @@ export const meetings = pgTable("meetings", {
     .notNull()
     .references(() => agents.id, { onDelete: "cascade" }),
   status: meetingStatus("status").notNull().default("upcoming"),
-  startedAt: timestamp("started_at",{ mode: "string" }),
-  endedAt: timestamp("ended_at",{ mode: "string" }),
+  startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
+  endedAt: timestamp("ended_at", { withTimezone: true, mode: "date" }),
   transcript: jsonb("transcript")
     .$type<TranscriptItem[]>()
     .notNull()

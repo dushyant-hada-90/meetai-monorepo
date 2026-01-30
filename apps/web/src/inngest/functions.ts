@@ -81,8 +81,8 @@ export const meetingsProcessing = inngest.createFunction(
       const [meeting] = await db.update(meetings)
         .set({
           status: "processing",
-          startedAt:startedAt,
-          endedAt:endedAt,
+          startedAt: startedAt ? new Date(startedAt) : undefined,
+          endedAt: endedAt ? new Date(endedAt) : undefined,
         })
         .where(eq(meetings.id, meetingId))
         .returning();

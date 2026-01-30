@@ -38,10 +38,10 @@ export async function POST(req: NextRequest) {
                 .update(meetings)
                 .set({ status: "active" })
                 .where(eq(meetings.id, event.room.name));
-            
+
             console.log(`Meeting ${event.room.name} status set to active`);
         }
-
+        // console.log(event.room)
         // Handle the "Room Finished" event
         // Inside your app/api/webhooks/livekit/route.ts POST handler
         if (event.event === 'room_finished') {
@@ -49,8 +49,8 @@ export async function POST(req: NextRequest) {
                 name: "livekit/room_finished",
                 data: {
                     meetingId: event.room?.name, // Assuming meetingName/Id is passed here
-                    startedAt:event.room?.creationTime,
-                    endedAt:event.createdAt // this is the time when webhook was cereated which marks the end of meeting
+                    startedAt: new Date(Number(event.room?.creationTimeMs)),
+                    endedAt: new Date() // this is the time when webhook was cereated which marks the end of meeting
                 },
             });
         }
