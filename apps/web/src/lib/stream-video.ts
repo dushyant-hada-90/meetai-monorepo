@@ -23,16 +23,16 @@ interface TokenRequest {
 
 export const generateLivekitToken = async (body: TokenRequest) => {
   // server.js or where you create roomService
-// const key = process.env.LIVEKIT_API_KEY || "";
-// const secret = process.env.LIVEKIT_API_SECRET || "";
-// const url = process.env.LIVEKIT_URL || "";
+  // const key = process.env.LIVEKIT_API_KEY || "";
+  // const secret = process.env.LIVEKIT_API_SECRET || "";
+  // const url = process.env.LIVEKIT_URL || "";
 
-// console.log("--- VERCEL AUTH DEBUG ---");
-// console.log(`URL: ${url}`);
-// console.log(`Key First/Last: ${key[0]}...${key[key.length-1]}`);
-// console.log(`Secret Length: ${secret.length}`);
-// console.log(`Secret Corrupted? ${secret.includes('"') || secret.includes(" ") ? "YES" : "NO"}`);
-// console.log("-------------------------");
+  // console.log("--- VERCEL AUTH DEBUG ---");
+  // console.log(`URL: ${url}`);
+  // console.log(`Key First/Last: ${key[0]}...${key[key.length-1]}`);
+  // console.log(`Secret Length: ${secret.length}`);
+  // console.log(`Secret Corrupted? ${secret.includes('"') || secret.includes(" ") ? "YES" : "NO"}`);
+  // console.log("-------------------------");
 
   const roomName = body.room_name ?? 'quickstart-room';
   const participantIdentity = body.participant_identity ?? 'quickstart-identity';
@@ -89,7 +89,7 @@ export const generateLivekitToken = async (body: TokenRequest) => {
   try {
     await roomService.createRoom({
       name: roomName,
-      emptyTimeout: 10, // 10 minutes
+      emptyTimeout: 10*60, //in seconds
       metadata: roomMetadata, // <--- THIS is where we push the data
     });
   } catch (e) {
@@ -110,7 +110,7 @@ export const generateLivekitToken = async (body: TokenRequest) => {
   });
 
   at.addGrant({ 
-    roomJoin: true, 
+      roomJoin: true,
     room: roomName,
     roomList: true,
     roomAdmin:true,

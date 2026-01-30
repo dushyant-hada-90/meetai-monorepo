@@ -1,4 +1,7 @@
+import { db } from "@/db";
+import { meetings } from "@/db/schema";
 import { inngest } from "@/inngest/client";
+import { eq } from "drizzle-orm";
 import { WebhookReceiver } from "livekit-server-sdk";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
@@ -29,7 +32,17 @@ export async function POST(req: NextRequest) {
 
         console.log(`LiveKit Webhook received: ${event.event}`);
 
-        // 4. Handle the "Room Finished" event
+        // Handle the "Room Started" event - set meeting status to active
+        if (event.event === 'room_started' && event.room?.name) {
+            await db
+                .update(meetings)
+                .set({ status: "active" })
+                .where(eq(meetings.id, event.room.name));
+            
+            console.log(`Meeting ${event.room.name} status set to active`);
+        }
+
+        // Handle the "Room Finished" event
         // Inside your app/api/webhooks/livekit/route.ts POST handler
         if (event.event === 'room_finished') {
             await inngest.send({
