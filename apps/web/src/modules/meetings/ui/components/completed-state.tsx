@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { formatDuration } from "@/lib/utils"
 import Markdown from "react-markdown"
 import { Transcript } from "./transcript"
+import { AiChat } from "./ai-chat"
 
 interface Props {
     data: MeetingGetOne
@@ -47,7 +48,7 @@ export const CompletedState = ({ data }: Props) => {
                     <Transcript meetingId={data.id}/>
                 </TabsContent>
                 <TabsContent value="chat">
-                    <h1>TODO</h1>
+                    <AiChat/>
                 </TabsContent>
                 <TabsContent value="summary">
                     <div className="bg-white rounded-lg border">
