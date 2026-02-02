@@ -3,303 +3,328 @@
 import React from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
+import {
+  ArrowRight,
+  Brain,
+  ShieldCheck,
+  LayoutDashboard,
+  CheckCircle2,
+  Sparkles,
+} from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { 
-  ArrowRight, Sparkles, Brain, LayoutDashboard, 
-  ShieldCheck, CheckCircle2, PlayCircle, Zap 
-} from "lucide-react"
 
-// --- Utility Components ---
+/* ---------------------------------- utils --------------------------------- */
 
-const DotPattern = () => (
-  <div className="absolute inset-0 -z-10 h-full w-full bg-background [background-image:radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] dark:[background-image:radial-gradient(#1f2937_1px,transparent_1px)]"></div>
-)
-
-const FadeIn = ({ children, delay = 0, className }: { children: React.ReactNode, delay?: number, className?: string }) => (
+const Fade = ({
+  children,
+  delay = 0,
+  className = "",
+}: {
+  children: React.ReactNode
+  delay?: number
+  className?: string
+}) => (
   <motion.div
-    initial={{ opacity: 0, y: 20 }}
+    initial={{ opacity: 0, y: 16 }}
     whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true }}
-    transition={{ duration: 0.5, delay, ease: "easeOut" }}
+    viewport={{ once: true, margin: "-80px" }}
+    transition={{ duration: 0.4, ease: "easeOut", delay }}
     className={className}
   >
     {children}
   </motion.div>
 )
 
-// --- Main View ---
+/* ---------------------------------- page ---------------------------------- */
 
 export const HomeView = () => {
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground overflow-x-hidden">
-      
-      {/* Hero Section */}
-      <section className="relative pt-20 pb-32 lg:pt-32 lg:pb-40 overflow-hidden">
-        <DotPattern />
-        
-        {/* Ambient Gradients */}
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 opacity-50 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/4 opacity-50 pointer-events-none" />
+    <main className="min-h-screen bg-background text-foreground overflow-x-hidden">
+      <div className="min-h-screen flex flex-col">
+        <Hero />
+        <SocialProof />
+      </div>
+      <Features />
+      <ProductPreview />
+      <CTA />
+    </main>
+  )
+}
 
-        <div className="container relative z-10 mx-auto px-6 text-center">
-          <FadeIn>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border bg-background/50 backdrop-blur-sm text-sm font-medium text-muted-foreground mb-8 hover:bg-muted/50 transition-colors cursor-default">
-              <Sparkles className="w-3.5 h-3.5 text-primary" />
-              <span>AI-Powered Meeting Intelligence</span>
-            </div>
-          </FadeIn>
-          
-          <FadeIn delay={0.1}>
-            <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-8 max-w-5xl mx-auto leading-[1.1]">
-              Turn Conversations into <br className="hidden md:block" />
-              <span className="bg-gradient-to-r from-primary via-indigo-500 to-primary bg-clip-text text-transparent bg-300% animate-gradient">
-                Actionable Intelligence
-              </span>
-            </h1>
-          </FadeIn>
-          
-          <FadeIn delay={0.2}>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-              MeetAI deploys autonomous agents to your calls to transcribe, summarize, and extract insights in real-time. Stop taking notes; start listening.
-            </p>
-          </FadeIn>
-          
-          <FadeIn delay={0.3} className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button size="lg" className="rounded-full px-8 h-12 text-base shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all hover:scale-105" asChild>
-              <Link href="/agents">
-                Start for Free <ArrowRight className="ml-2 w-4 h-4" />
+/* ---------------------------------- hero ---------------------------------- */
+
+function Hero() {
+  return (
+    <section className="relative flex-1 flex flex-col justify-center border-b overflow-hidden">
+      {/* background gradient + blobs */}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-emerald-500/10 via-background to-background" />
+      <div className="absolute -top-32 -left-32 w-96 h-96 bg-emerald-400/20 rounded-full blur-3xl" />
+      <div className="absolute top-40 -right-32 w-96 h-96 bg-teal-400/20 rounded-full blur-3xl" />
+
+      <div className="container mx-auto px-4 py-24 text-center max-w-5xl">
+        <Fade>
+          <Badge className="mb-6 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-foreground border-emerald-500/30">
+            <Sparkles className="w-3 h-3 mr-1 text-emerald-500" />
+            AI‑powered meeting intelligence
+          </Badge>
+        </Fade>
+
+        <Fade delay={0.05}>
+          <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
+            Meetings that{" "}
+            <span className="bg-gradient-to-r from-emerald-500 via-teal-500 to-lime-400 bg-clip-text text-transparent">
+              turn talk into action
+            </span>
+          </h1>
+        </Fade>
+
+        <Fade delay={0.1}>
+          <p className="mt-6 text-lg text-muted-foreground max-w-3xl mx-auto">
+            MeetAI joins your meetings, understands the conversation, and
+            automatically generates summaries, decisions, and action items —
+            ready to share, search, and execute.
+          </p>
+        </Fade>
+
+        {/* product bullets */}
+        <Fade delay={0.15}>
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm max-w-4xl mx-auto">
+            <HeroPoint text="Instant meeting summaries" />
+            <HeroPoint text="Action items with owners & deadlines" />
+            <HeroPoint text="Export to Notion, Slack & CRMs" />
+          </div>
+        </Fade>
+
+        <Fade delay={0.2}>
+          <div className="mt-12 flex flex-col sm:flex-row justify-center gap-4">
+            <Button
+              size="lg"
+              className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:opacity-90"
+              asChild
+            >
+              <Link href="/sign-up">
+                Get started free <ArrowRight className="ml-2 w-4 h-4" />
               </Link>
             </Button>
-            <Button variant="outline" size="lg" className="rounded-full px-8 h-12 text-base bg-background/50 backdrop-blur hover:bg-muted transition-all" asChild>
-               <Link href="/demo">
-                 <PlayCircle className="mr-2 w-4 h-4" /> View Demo
-               </Link>
+
+            <Button size="lg" variant="outline" asChild>
+              <Link href="/demo">View live demo</Link>
             </Button>
-          </FadeIn>
-
-          {/* Abstract Dashboard Preview */}
-          <FadeIn delay={0.5} className="mt-20 relative max-w-5xl mx-auto">
-            <div className="rounded-xl border bg-background/50 backdrop-blur-sm shadow-2xl p-2 lg:p-4">
-               <div className="rounded-lg border bg-card overflow-hidden aspect-[16/9] relative shadow-inner flex items-center justify-center bg-muted/20">
-                   {/* This serves as a placeholder for a real screenshot */}
-                   <div className="text-center space-y-4">
-                      <div className="flex justify-center -space-x-4">
-                         {[1,2,3,4].map((i) => (
-                           <div key={i} className={`w-12 h-12 rounded-full border-4 border-background flex items-center justify-center font-bold text-white shadow-sm ${
-                             ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-yellow-500'][i-1]
-                           }`}>
-                             {['JD', 'AS', 'MK', 'AI'][i-1]}
-                           </div>
-                         ))}
-                      </div>
-                      <p className="text-sm text-muted-foreground font-medium animate-pulse">
-                         Analyzing conversation stream...
-                      </p>
-                   </div>
-                   
-                   {/* Floating Elements for depth */}
-                   <motion.div 
-                     animate={{ y: [0, -10, 0] }}
-                     transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                     className="absolute top-10 right-10 w-48 p-4 bg-background/90 backdrop-blur border rounded-lg shadow-xl text-left text-xs space-y-2 hidden md:block"
-                   >
-                      <div className="flex items-center gap-2 text-primary font-bold">
-                        <Zap className="w-3 h-3 fill-current" /> Insight Detected
-                      </div>
-                      <p className="text-muted-foreground">&quot;Action Item: Update the Q3 Roadmap by Friday.&quot;</p>
-                   </motion.div>
-               </div>
-            </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="border-y bg-muted/30">
-        <div className="container mx-auto px-6 py-12">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <StatItem value="10k+" label="Meetings Analyzed" />
-            <StatItem value="500+" label="Active Agents" />
-            <StatItem value="99.9%" label="Uptime SLA" />
-            <StatItem value="24/7" label="Support" />
           </div>
-        </div>
-      </section>
+        </Fade>
+      </div>
+    </section>
+  )
+}
 
-      {/* Features Grid */}
-      <section className="py-24 md:py-32 relative">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-20 max-w-3xl mx-auto">
-            <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">Built for Modern Teams</h2>
-            <p className="text-lg text-muted-foreground">
-              Everything you need to streamline your meeting workflows and capture every important detail, securely and instantly.
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <FeatureCard 
-              icon={<Brain className="w-6 h-6 text-primary" />}
-              title="Intelligent Agents"
-              description="Agents that listen, learn, and adapt. Deploy them to any meeting platform instantly with a single click."
-              delay={0}
-            />
-            <FeatureCard 
-               icon={<LayoutDashboard className="w-6 h-6 text-indigo-500" />}
-              title="Centralized Hub"
-              description="Manage all your transcripts, recordings, and summaries from a unified, searchable dashboard."
-              delay={0.1}
-            />
-             <FeatureCard 
-               icon={<ShieldCheck className="w-6 h-6 text-emerald-500" />}
-              title="Enterprise Security"
-              description="Your data is encrypted at rest and in transit. SOC2 compliant with granular access controls."
-              delay={0.2}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Interactive / Demo Section */}
-      <section className="py-24 bg-gradient-to-b from-background to-muted/50">
-         <div className="container mx-auto px-6">
-            <div className="rounded-3xl border bg-card text-card-foreground shadow-2xl overflow-hidden relative group">
-                {/* Decorative gradients */}
-                <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-blue-500/20 blur-[100px] rounded-full pointer-events-none" />
-                
-                <div className="grid lg:grid-cols-2 gap-0">
-                     <div className="p-10 md:p-16 flex flex-col justify-center space-y-8 z-10">
-                        <Badge variant="secondary" className="w-fit px-4 py-1 text-sm">Smart Analysis</Badge>
-                        <h3 className="text-3xl md:text-4xl font-bold leading-tight">
-                            Instant Summaries, <br/>
-                            <span className="text-muted-foreground">Zero Effort.</span>
-                        </h3>
-                        <p className="text-lg text-muted-foreground leading-relaxed">
-                            Stop taking manual notes. MeetAI automatically generates concise meeting minutes, action items, and topic breakdowns the moment your call ends.
-                        </p>
-                        <ul className="space-y-4 pt-4">
-                            <CheckItem text="Speaker identification & diaritization" />
-                            <CheckItem text="Sentiment analysis & engagement tracking" />
-                            <CheckItem text="Export to Notion, Slack, and CRM" />
-                        </ul>
-                        <div className="pt-4">
-                          <Button variant="default" className="rounded-full px-6" asChild>
-                              <Link href="/meetings">Try on your next call</Link>
-                          </Button>
-                        </div>
-                     </div>
-                     
-                     <div className="relative bg-muted/50 border-l p-8 min-h-[400px] flex items-center justify-center">
-                         {/* Abstract UI Representation */}
-                         <div className="w-full max-w-md bg-background rounded-2xl shadow-xl border overflow-hidden transform group-hover:scale-[1.02] transition-transform duration-500">
-                             {/* Mock Header */}
-                             <div className="h-12 border-b bg-muted/30 flex items-center px-4 gap-2">
-                                 <div className="flex gap-1.5">
-                                   <div className="w-2.5 h-2.5 rounded-full bg-red-400/80"></div>
-                                   <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/80"></div>
-                                   <div className="w-2.5 h-2.5 rounded-full bg-green-400/80"></div>
-                                 </div>
-                                 <div className="ml-auto w-20 h-2 bg-muted rounded-full"></div>
-                             </div>
-                             
-                             {/* Mock Body */}
-                             <div className="p-6 space-y-6">
-                                 {/* Chat Bubble 1 */}
-                                 <div className="flex gap-4 items-start opacity-50">
-                                     <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs text-blue-600 font-bold">AS</div>
-                                     <div className="flex-1 space-y-2">
-                                         <div className="w-24 h-3 bg-muted rounded"></div>
-                                         <div className="w-full h-2 bg-muted/50 rounded"></div>
-                                         <div className="w-3/4 h-2 bg-muted/50 rounded"></div>
-                                     </div>
-                                 </div>
-                                 
-                                 {/* Chat Bubble 2 (Active) */}
-                                 <div className="flex gap-4 items-start">
-                                     <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-xs text-purple-600 font-bold ring-2 ring-purple-100 ring-offset-2">AI</div>
-                                     <div className="flex-1 space-y-2">
-                                         <div className="flex justify-between items-center">
-                                            <div className="w-16 h-3 bg-muted rounded"></div>
-                                            <Badge variant="outline" className="text-[10px] py-0 h-4 border-purple-200 text-purple-600 bg-purple-50">Summary</Badge>
-                                         </div>
-                                         <div className="w-full bg-primary/5 rounded-xl border border-primary/10 p-4 text-sm text-foreground/80 leading-relaxed shadow-sm">
-                                              <p className="font-semibold text-primary mb-1 text-xs uppercase tracking-wide">Key Takeaway</p>
-                                              The team agreed to prioritize the <span className="font-bold text-primary">Q3 Roadmap</span> updates. Deadline set for Friday.
-                                         </div>
-                                     </div>
-                                 </div>
-                             </div>
-                         </div>
-                     </div>
-                </div>
-            </div>
-         </div>
-      </section>
-      
-      {/* CTA Section */}
-      <section className="py-24">
-         <div className="container mx-auto px-6">
-            <div className="bg-primary text-primary-foreground rounded-[2.5rem] p-12 md:p-24 relative overflow-hidden text-center shadow-2xl">
-               {/* Abstract Shapes */}
-               <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
-               <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-72 h-72 bg-black/10 rounded-full blur-3xl"></div>
-               
-               <div className="relative z-10 max-w-3xl mx-auto">
-                   <h2 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight">Ready to transform your workflow?</h2>
-                   <p className="text-xl text-primary-foreground/80 mb-10 max-w-2xl mx-auto">
-                       Join thousands of professionals who save hours every week with MeetAI.
-                   </p>
-                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                       <Button variant="secondary" size="lg" className="rounded-full px-10 h-14 text-lg font-bold shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300" asChild>
-                           <Link href="/sign-up">Get Started Free</Link>
-                       </Button>
-                   </div>
-                   <p className="mt-8 text-sm opacity-60">No credit card required · Cancel anytime</p>
-               </div>
-            </div>
-         </div>
-      </section>
+function HeroPoint({ text }: { text: string }) {
+  return (
+    <div className="flex items-center justify-center gap-2 rounded-xl border bg-background/70 backdrop-blur px-4 py-3 shadow-sm">
+      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+      <span>{text}</span>
     </div>
   )
 }
 
-// --- Sub Components ---
 
-function StatItem({ value, label }: { value: string, label: string }) {
+/* ------------------------------- social proof ------------------------------ */
+
+function SocialProof() {
   return (
-    <div className="text-center space-y-2">
-      <div className="text-4xl lg:text-5xl font-bold text-primary tracking-tight">{value}</div>
-      <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{label}</div>
+    <section className="py-10 bg-muted/20">
+      <div className="container mx-auto px-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          <Stat value="12k+" label="Meetings analyzed" />
+          <Stat value="94%" label="Action items captured" />
+          <Stat value="<2s" label="Post-call summary" />
+          <Stat value="SOC-2" label="Security ready" />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function Stat({ value, label }: { value: string; label: string }) {
+  return (
+    <div>
+      <div className="text-3xl font-bold bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">
+        {value}
+      </div>
+      <div className="text-xs mt-1 text-muted-foreground uppercase tracking-wide">
+        {label}
+      </div>
     </div>
   )
 }
 
-function FeatureCard({ icon, title, description, delay }: { icon: React.ReactNode, title: string, description: string, delay: number }) {
+/* -------------------------------- features -------------------------------- */
+
+function Features() {
   return (
-    <FadeIn delay={delay} className="h-full">
-      <Card className="h-full border-muted/60 hover:border-primary/50 transition-all duration-300 hover:shadow-lg group">
+    <section className="py-28">
+      <div className="container mx-auto px-4 max-w-6xl">
+        <Fade>
+          <h2 className="text-3xl md:text-4xl font-bold text-center">
+            Designed for real teams
+          </h2>
+        </Fade>
+
+        <div className="mt-16 grid md:grid-cols-3 gap-8">
+          <Feature
+            icon={<Brain />}
+            title="Autonomous agents"
+            text="Agents that attend meetings, understand context, and continuously improve summaries."
+            gradient="from-emerald-500 to-teal-500"
+            delay={0}
+          />
+          <Feature
+            icon={<LayoutDashboard />}
+            title="Unified workspace"
+            text="All transcripts, decisions, and action items searchable in one place."
+            gradient="from-teal-500 to-lime-400"
+            delay={0.05}
+          />
+          <Feature
+            icon={<ShieldCheck />}
+            title="Enterprise-grade security"
+            text="Encrypted by default. Designed to meet SOC-2 and GDPR standards."
+            gradient="from-lime-400 to-emerald-500"
+            delay={0.1}
+          />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function Feature({
+  icon,
+  title,
+  text,
+  gradient,
+  delay,
+}: {
+  icon: React.ReactNode
+  title: string
+  text: string
+  gradient: string
+  delay: number
+}) {
+  return (
+    <Fade delay={delay}>
+      <Card className="h-full relative overflow-hidden">
+        <div
+          className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${gradient}`}
+        />
         <CardHeader>
-          <div className="w-12 h-12 rounded-xl bg-primary/5 flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
+          <div
+            className={`w-11 h-11 rounded-xl bg-gradient-to-r ${gradient} text-white flex items-center justify-center mb-4`}
+          >
             {icon}
           </div>
-          <CardTitle className="text-xl">{title}</CardTitle>
+          <CardTitle>{title}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground leading-relaxed">
-            {description}
-          </p>
+          <p className="text-muted-foreground">{text}</p>
         </CardContent>
       </Card>
-    </FadeIn>
+    </Fade>
   )
 }
 
-function CheckItem({ text }: { text: string }) {
+/* ----------------------------- product preview ----------------------------- */
+
+function ProductPreview() {
   return (
-    <div className="flex items-start gap-3">
-      <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
-      <span className="text-muted-foreground font-medium">{text}</span>
-    </div>
+    <section className="py-24 bg-gradient-to-b from-muted/40 to-background border-y">
+      <div className="container mx-auto px-4 max-w-6xl">
+        <Fade>
+          <h2 className="text-3xl md:text-4xl font-bold text-center">
+            From call → clarity in seconds
+          </h2>
+        </Fade>
+
+        <Fade delay={0.1}>
+          <p className="mt-4 text-muted-foreground text-center max-w-2xl mx-auto">
+            MeetAI listens once, then works forever — organizing every meeting
+            into searchable, structured knowledge.
+          </p>
+        </Fade>
+
+        <Fade delay={0.15}>
+          <div className="mt-16 grid md:grid-cols-2 gap-10 items-center">
+            {/* left: workflow */}
+            <div className="space-y-4">
+              <PreviewItem text="Live transcription with speaker detection" />
+              <PreviewItem text="AI‑generated summary & key decisions" />
+              <PreviewItem text="Action items auto‑assigned to participants" />
+              <PreviewItem text="One workspace for all past meetings" />
+            </div>
+
+            {/* right: visual container */}
+            <div className="relative rounded-2xl border bg-background/70 backdrop-blur p-8 shadow-lg">
+              <div className="absolute -top-4 -right-4 w-24 h-24 bg-emerald-400/30 rounded-full blur-2xl" />
+              <div className="space-y-3 text-sm">
+                <div className="font-medium">Meeting Summary</div>
+                <ul className="text-muted-foreground space-y-2 list-disc list-inside">
+                  <li>Decision: Launch onboarding redesign next sprint</li>
+                  <li>Action: Alex → prepare Figma by Friday</li>
+                  <li>Action: Team → review metrics</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </Fade>
+      </div>
+    </section>
+  )
+}
+
+
+function PreviewItem({ text }: { text: string }) {
+  return (
+    <li className="flex items-start gap-3">
+      <CheckCircle2 className="w-5 h-5 text-emerald-500 mt-0.5" />
+      <span>{text}</span>
+    </li>
+  )
+}
+
+/* ---------------------------------- cta ---------------------------------- */
+
+function CTA() {
+  return (
+    <section className="py-28">
+      <div className="container mx-auto px-4 max-w-4xl">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-500 via-teal-500 to-lime-400 text-white px-8 py-20 text-center shadow-xl">
+          <Fade>
+            <h2 className="text-4xl font-bold">
+              Stop taking notes. Start making decisions.
+            </h2>
+          </Fade>
+
+          <Fade delay={0.1}>
+            <p className="mt-4 text-white/80 text-lg max-w-xl mx-auto">
+              MeetAI works silently in the background so you can focus on the
+              conversation.
+            </p>
+          </Fade>
+
+          <Fade delay={0.15}>
+            <div className="mt-10">
+              <Button size="lg" variant="secondary" asChild>
+                <Link href="/sign-up">Create free account</Link>
+              </Button>
+              <p className="mt-4 text-xs text-white/70">
+                No credit card required
+              </p>
+            </div>
+          </Fade>
+        </div>
+      </div>
+    </section>
   )
 }
