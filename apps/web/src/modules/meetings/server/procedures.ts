@@ -261,6 +261,8 @@ export const meetingsRouter = createTRPCRouter({
           id: meetings.id,
           name: meetings.name,
           createdByUserId:meetings.createdByUserId,
+          createdByUsername: user.name,
+          createdByUserImage: user.image,
           startsAt: meetings.startsAt,
           agent: {
             id: agents.id,
@@ -269,6 +271,7 @@ export const meetingsRouter = createTRPCRouter({
         })
         .from(meetings)
         .innerJoin(agents, eq(meetings.agentId, agents.id))
+        .innerJoin(user, eq(meetings.createdByUserId, user.id))
         .where(eq(meetings.id, invite.meetingId))
         .limit(1);
 
