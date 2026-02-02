@@ -9,7 +9,6 @@ export function middleware(req: NextRequest) {
   const publicRoutes = [
     "/sign-in",
     "/sign-up",
-    "/api/auth", // Ensure sub-paths are handled if needed
   ];
 
   // Check if the current path matches a public route
@@ -52,6 +51,6 @@ export const config = {
    * - images, fonts (path conventions)
    */
   matcher: [
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.gif|.*\\.svg).*)",
+    "/((?!api/|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.gif|.*\\.svg).*)",
   ],
 };
