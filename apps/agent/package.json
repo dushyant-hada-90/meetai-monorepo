@@ -1,0 +1,43 @@
+{
+  "name": "meetai-agent",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "pnpm": {
+    "overrides": {
+      "@types/node": "22.19.7"
+    }
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "db:pull": "drizzle-kit introspect",
+    "livekit-agent": "tsx src/agent.ts dev",
+    "inngest": "pnpm dlx inngest-cli@latest dev",
+    "build": "tsc",
+    "start": "node dist/agent.js start",
+    "download-files": "node dist/agent.js download-files"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.28.2",
+  "dependencies": {
+    "@inngest/agent-kit": "^0.13.2",
+    "@livekit/agents": "^1.0.39",
+    "@livekit/agents-plugin-google": "^1.0.39",
+    "@livekit/noise-cancellation-node": "^0.1.9",
+    "@neondatabase/serverless": "github:neondatabase/serverless",
+    "@types/ws": "^8.18.1",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.45.1",
+    "inngest": "^3.49.3",
+    "postgres": "^3.4.8",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.8",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
