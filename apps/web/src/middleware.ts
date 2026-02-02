@@ -22,8 +22,10 @@ export function middleware(request: NextRequest) {
   // 3. Check if the session token cookie exists
   // better-auth typically uses "better-auth.session_token" or "session_token"
   const hasToken = 
+    request.cookies.has("session_token") || 
+    request.cookies.has("__Secure-session_token") ||
     request.cookies.has("better-auth.session_token") || 
-    request.cookies.has("session_token")
+    request.cookies.has("__Secure-better-auth.session_token");
 
   const isProtectedRoute =
     pathname.startsWith("/agents") ||
