@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { agents, meetings } from '@/db/schema';
 import { auth } from '@/lib/auth';
-import { polarClient } from '@/lib/polar';
+import { getCustomerStateSafe } from '@/lib/polar';
 import { MAX_FREE_AGENTS, MAX_FREE_MEETINGS } from '@/modules/premium/constants';
 import { initTRPC, TRPCError } from '@trpc/server';
 import { count, eq } from 'drizzle-orm';
@@ -46,15 +46,13 @@ export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
 
 export const premiumProcedure = (entity: "meetings" | "agents") =>
   protectedProcedure.use(async ({ ctx, next }) => {
-    const customer = await polarClient.customers.getStateExternal({
-      externalId: ctx.auth.user.id,
-    })
+    const customer = await getCustomerStateSafe(ctx.auth.user.id)
     const [userMeetings] = await db.
       select({
         count: count(meetings.id)
       })
       .from(meetings)
-      .where(eq(meetings.userId, ctx.auth.user.id))
+      .where(eq(meetings.createdByUserId, ctx.auth.user.id))
 
     const [userAgents] = await db.
       select({
@@ -63,7 +61,8 @@ export const premiumProcedure = (entity: "meetings" | "agents") =>
       .from(agents)
       .where(eq(agents.userId, ctx.auth.user.id))
 
-    const isPremium = customer.activeSubscriptions.length > 0
+    const activeSubscriptions = customer?.activeSubscriptions ?? []
+    const isPremium = activeSubscriptions.length > 0
     const isFreeAgentLimitReached = userAgents.count >= MAX_FREE_AGENTS
     const isFreeMeetingLimitReached = userMeetings.count >= MAX_FREE_MEETINGS
 

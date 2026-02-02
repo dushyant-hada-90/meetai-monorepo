@@ -6,17 +6,18 @@ import { WebhookReceiver } from "livekit-server-sdk";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
-// Initialize the receiver with your credentials
-const receiver = new WebhookReceiver(
-    process.env.LIVEKIT_API_KEY!,
-    process.env.LIVEKIT_API_SECRET!
-);
-
 export async function POST(req: NextRequest) {
+    // Initialize the receiver with your credentials inside the handler
+    // to ensure they are available and current.
+    const receiver = new WebhookReceiver(
+        process.env.LIVEKIT_API_KEY!,
+        process.env.LIVEKIT_API_SECRET!
+    );
+    
     console.log("Webhook hit!")
     // 1. Get the raw body as text (required for signature validation)
     const body = await req.text();
-    // console.log(body)
+    // console.log("Body length:", body.length)
 
     // 2. Get the Authorization header (the signed JWT)
     const headerList = headers();

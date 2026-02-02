@@ -1,5 +1,18 @@
-import { pgTable, text, timestamp, boolean, pgEnum, jsonb } from "drizzle-orm/pg-core";
-import { nanoid } from "nanoid"
+import { 
+  pgTable, 
+  text, 
+  timestamp, 
+  boolean, 
+  pgEnum, 
+  jsonb, 
+  primaryKey, 
+  index 
+} from "drizzle-orm/pg-core";
+import { nanoid } from "nanoid";
+
+// ----------------------------------------------------------------------
+// User & Auth Tables (Better Auth)
+// ----------------------------------------------------------------------
 
 export const user = pgTable("user", {
   id: text('id').primaryKey(),
@@ -7,8 +20,8 @@ export const user = pgTable("user", {
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').$defaultFn(() => false).notNull(),
   image: text('image'),
-  createdAt: timestamp('created_at').$defaultFn(() => /* @__PURE__ */ new Date()).notNull(),
-  updatedAt: timestamp('updated_at').$defaultFn(() => /* @__PURE__ */ new Date()).notNull()
+  createdAt: timestamp('created_at').$defaultFn(() => new Date()).notNull(),
+  updatedAt: timestamp('updated_at').$defaultFn(() => new Date()).notNull()
 });
 
 export const session = pgTable("session", {
@@ -43,9 +56,13 @@ export const verification = pgTable("verification", {
   identifier: text('identifier').notNull(),
   value: text('value').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
-  createdAt: timestamp('created_at').$defaultFn(() => /* @__PURE__ */ new Date()),
-  updatedAt: timestamp('updated_at').$defaultFn(() => /* @__PURE__ */ new Date())
+  createdAt: timestamp('created_at').$defaultFn(() => new Date()),
+  updatedAt: timestamp('updated_at').$defaultFn(() => new Date())
 });
+
+// ----------------------------------------------------------------------
+// App Specific Tables
+// ----------------------------------------------------------------------
 
 export const agents = pgTable("agents", {
   id: text("id")
@@ -58,8 +75,7 @@ export const agents = pgTable("agents", {
   instructions: text("instructions").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow()
-
-})
+});
 
 export const meetingStatus = pgEnum("meeting_status", [
   "upcoming",
@@ -67,38 +83,96 @@ export const meetingStatus = pgEnum("meeting_status", [
   "completed",
   "processing",
   "cancelled"
-])
+]);
 
+export const participantRole = pgEnum("participant_role", [
+  "host",
+  "co_host",
+  "attendee",
+  "viewer"
+]);
 
 export type AgentId = string;
 export type UserId = string;
+export type ParticipantRole = typeof participantRole.enumValues[number];
 
 export interface TranscriptItem {
   role: "human" | "assistant";
   speaker: AgentId | UserId | "unknownUser";
   text: string;
-  timestamp: number; // Changed 'time' to 'timestamp' to match your previous code
+  timestamp: number;
 }
+
 export const meetings = pgTable("meetings", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
   name: text("name").notNull(),
-  userId: text("user_id")
+  createdByUserId: text("created_by_user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
   agentId: text("agent_id")
     .notNull()
     .references(() => agents.id, { onDelete: "cascade" }),
+  
   status: meetingStatus("status").notNull().default("upcoming"),
+  
+  // NEW: The scheduled time (Planned)
+  startsAt: timestamp("starts_at", { withTimezone: true, mode: "date" }),
+  
+  // The actual execution times (Real)
   startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
   endedAt: timestamp("ended_at", { withTimezone: true, mode: "date" }),
+  
   transcript: jsonb("transcript")
     .$type<TranscriptItem[]>()
     .notNull()
     .default([]),
   summary: text("summary"),
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow()
+});
 
-})
+export const meetingParticipants = pgTable("meeting_participants", {
+  meetingId: text("meeting_id")
+    .notNull()
+    .references(() => meetings.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  role: participantRole("role").notNull().default("attendee"),
+  hasJoined: boolean("has_joined").default(false),
+  invitedAt: timestamp("invited_at").defaultNow().notNull(),
+  joinedAt: timestamp("joined_at"),
+}, (t) => ({
+  // Composite Primary Key: Ensures unique user-meeting pair
+  pk: primaryKey({ columns: [t.meetingId, t.userId] }),
+}));
+
+// ----------------------------------------------------------------------
+// NEW: Meeting Invites (Reusable Links)
+// ----------------------------------------------------------------------
+
+export const meetingInvites = pgTable("meeting_invites", {
+  // This 'id' is the unique token in the URL (e.g. /meetings/join?token=abc-123)
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+
+  meetingId: text("meeting_id")
+    .notNull()
+    .references(() => meetings.id, { onDelete: "cascade" }),
+
+  // The role this link grants (e.g., 'co_host')
+  role: participantRole("role").notNull(),
+
+  // When this link stops working
+  expiresAt: timestamp("expires_at").notNull(),
+
+  // Audit trail
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => ({
+  // Index for fast lookups during "Get or Create" link generation
+  meetingRoleIndex: index("meeting_role_idx").on(t.meetingId, t.role)
+}));
