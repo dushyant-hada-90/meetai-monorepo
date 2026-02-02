@@ -9,18 +9,19 @@ interface Props {
 
 const Page = async ({ searchParams }: Props) => {
   const { redirectTo } = await searchParams
-  console.log(redirectTo)
   const session = await auth.api.getSession({
     headers: await headers(),
   })
 
-  const destination =
-  redirectTo &&
-  redirectTo.startsWith("/") &&
-  !redirectTo.startsWith("//") &&
-  redirectTo !== "/"
-    ? redirectTo
-    : "/meetings";
+  const safeRedirect = (value?: string | null) => {
+    if (!value) return null
+    if (!value.startsWith("/")) return null
+    if (value.startsWith("//")) return null
+    return value
+  }
+
+  const sanitizedRedirect = safeRedirect(redirectTo)
+  const destination = sanitizedRedirect && sanitizedRedirect !== "/" ? sanitizedRedirect : "/meetings"
 
   if (session) {
     redirect(destination);

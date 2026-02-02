@@ -36,8 +36,15 @@ export const SignInView = ({ redirect }: Props) => {
     const [error, setError] = useState<string | null>(null)
     const [pending, setPending] = useState(false)
 
-    // 🔄 FIX: Default to "/" (Home) instead of "/agents"
-    const target = redirect?.startsWith("/") ? redirect : "/meeings"
+    const safeRedirect = (value?: string | null) => {
+        if (!value) return "/meetings"
+        if (!value.startsWith("/")) return "/meetings"
+        if (value.startsWith("//")) return "/meetings"
+        return value
+    }
+
+    const target = safeRedirect(redirect)
+    const signUpHref = redirect ? `/sign-up?redirectTo=${encodeURIComponent(target)}` : "/sign-up"
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -181,7 +188,7 @@ export const SignInView = ({ redirect }: Props) => {
                                 
                                 <div className="text-center text-sm">
                                     Don&apos;t have an account? {"  "}
-                                    <Link href="/sign-up" className="underline underline-offset-4">
+                                    <Link href={signUpHref} className="underline underline-offset-4">
                                         Sign up
                                     </Link>
                                 </div>

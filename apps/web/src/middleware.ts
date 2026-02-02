@@ -1,28 +1,46 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-export function middleware(req: NextRequest) {
+import { auth } from "@/lib/auth"
+
+const PUBLIC_FILE = /\.(.*)$/
+const PUBLIC_ROUTES = ["/", "/sign-in", "/sign-up"]
+const AUTH_ROUTES = ["/sign-in", "/sign-up"]
+const DEFAULT_REDIRECT = "/meetings"
+
+const isRouteMatch = (pathname: string, routes: string[]) =>
+  routes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
+
+const safeRedirect = (value?: string | null) => {
+  if (!value) return null
+  if (!value.startsWith("/")) return null
+  if (value.startsWith("//")) return null
+  return value
+}
+
+export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl
 
-  // 1. Allow unrestricted access to the landing page
-  if (pathname === "/") {
+  if (pathname.startsWith("/_next") || pathname.startsWith("/api") || PUBLIC_FILE.test(pathname)) {
     return NextResponse.next()
   }
 
-  // 2. Check if the session token cookie exists
-  // NOTE: Better Auth may use "session_token" or "better-auth.session_token"
-  const hasToken = req.cookies.has("session_token") || req.cookies.has("better-auth.session_token")
+  const isPublicRoute = isRouteMatch(pathname, PUBLIC_ROUTES)
+  const isAuthRoute = isRouteMatch(pathname, AUTH_ROUTES)
 
-  const isProtectedRoute =
-    pathname.startsWith("/agents") ||
-    pathname.startsWith("/meetings") ||
-    pathname.startsWith("/call") ||
-    pathname.startsWith("/upgrade")
+  const session = await auth.api.getSession({ headers: req.headers }).catch(() => null)
+  const isAuthenticated = Boolean(session)
 
-  // 3. UX Gate: If trying to access a protected route without a token cookie -> Redirect
-  if (isProtectedRoute && !hasToken) {
+  const redirectToParam = req.nextUrl.searchParams.get("redirectTo")
+  const resolvedRedirect = safeRedirect(redirectToParam) || DEFAULT_REDIRECT
+
+  if (isAuthRoute && isAuthenticated) {
+    return NextResponse.redirect(new URL(resolvedRedirect, req.url))
+  }
+
+  if (!isAuthenticated && !isPublicRoute) {
     const loginUrl = new URL("/sign-in", req.url)
-    loginUrl.searchParams.set("redirectTo", pathname + search)
+    loginUrl.searchParams.set("redirectTo", `${pathname}${search}`)
     return NextResponse.redirect(loginUrl)
   }
 

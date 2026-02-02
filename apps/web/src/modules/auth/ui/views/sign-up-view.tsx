@@ -43,7 +43,15 @@ export const SignUpView = ({redirect}:Props) => {
     const router = useRouter()
     const [error, setError] = useState<string | null>(null)
     const [pending, setPending] = useState(false)
-    const target = redirect?.startsWith("/") ? redirect : "/agents"
+    const safeRedirect = (value?: string | null) => {
+        if (!value) return "/meetings"
+        if (!value.startsWith("/")) return "/meetings"
+        if (value.startsWith("//")) return "/meetings"
+        return value
+    }
+
+    const target = safeRedirect(redirect)
+    const signInHref = redirect ? `/sign-in?redirectTo=${encodeURIComponent(target)}` : "/sign-in"
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -115,7 +123,7 @@ export const SignUpView = ({redirect}:Props) => {
                                         Create your account
                                     </p>
                                 </div>
-                                <div className="grid-gap-3">
+                                <div className="grid gap-3">
                                     <FormField
                                         control={form.control}
                                         name="name"
@@ -132,7 +140,7 @@ export const SignUpView = ({redirect}:Props) => {
                                             </FormItem>
                                         )} />
                                 </div>
-                                <div className="grid-gap-3">
+                                <div className="grid gap-3">
                                     <FormField
                                         control={form.control}
                                         name="email"
@@ -149,7 +157,7 @@ export const SignUpView = ({redirect}:Props) => {
                                             </FormItem>
                                         )} />
                                 </div>
-                                <div className="grid-gap-3">
+                                <div className="grid gap-3">
                                     <FormField
                                         control={form.control}
                                         name="password"
@@ -166,7 +174,7 @@ export const SignUpView = ({redirect}:Props) => {
                                             </FormItem>
                                         )} />
                                 </div>
-                                <div className="grid-gap-3">
+                                <div className="grid gap-3">
                                     <FormField
                                         control={form.control}
                                         name="confirmPassword"
@@ -193,7 +201,7 @@ export const SignUpView = ({redirect}:Props) => {
                                     type="submit"
                                     className="w-full"
                                     disabled={pending}>
-                                    Sign in
+                                    Sign up
                                 </Button>
                                 <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
                                     <span className="bg-card text-muted-foreground relative z-10 px-2">
@@ -222,7 +230,7 @@ export const SignUpView = ({redirect}:Props) => {
                                 </div>
                                 <div className="text-center text-sm">
                                     Already have an account? {"  "}
-                                    <Link href="/sign-in" className="underline underline-offset-4" >
+                                    <Link href={signInHref} className="underline underline-offset-4" >
                                         Sign in
                                     </Link>
                                 </div>
