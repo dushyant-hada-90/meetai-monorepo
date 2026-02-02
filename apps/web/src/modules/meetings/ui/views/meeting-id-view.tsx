@@ -15,7 +15,6 @@ import { CancelledState } from "../components/cancelled-state"
 import { ProcessingState } from "../components/processing-state"
 import { CompletedState } from "../components/completed-state"
 import { ShareDialog } from "../components/shareDialog"
-import { ParticipantRole } from "@/db/schema"
 
 interface Props {
     meetingId: string

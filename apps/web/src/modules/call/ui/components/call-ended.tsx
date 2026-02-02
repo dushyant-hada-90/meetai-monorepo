@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { CheckCircle, Clock, Home, Calendar } from "lucide-react"
+import { CheckCircle, Clock, Calendar } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 

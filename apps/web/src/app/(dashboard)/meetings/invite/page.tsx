@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth"; // Your Better Auth setup
-import { useTRPC } from "@/trpc/client";
 import { getQueryClient, trpc } from "@/trpc/server";
 import { InviteScreen } from "@/modules/meetings/ui/views/meeting-invite-view";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";

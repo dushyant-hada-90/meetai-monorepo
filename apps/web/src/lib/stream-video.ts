@@ -4,7 +4,7 @@ import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 // 2. Import your DB instance and schema
 import { db } from '@/db';
 import { agents, meetings } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 // Initialize the RoomService (needed to update room metadata)
 const roomService = new RoomServiceClient(

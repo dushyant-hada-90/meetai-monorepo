@@ -1,5 +1,5 @@
 import { db } from "@/db"
-import { agents, meetingInvites, meetingParticipants, meetings, TranscriptItem, user } from "@/db/schema"
+import { agents, meetingInvites, meetingParticipants, meetings, TranscriptItem, user, ParticipantRole } from "@/db/schema"
 import { createTRPCRouter, premiumProcedure, protectedProcedure } from "@/trpc/init"
 import { TRPCError } from "@trpc/server"
 import { z } from "zod"
@@ -221,7 +221,7 @@ export const meetingsRouter = createTRPCRouter({
       await db.insert(meetingParticipants).values({
         meetingId: input.meetingId,
         userId: userId,
-        role: role as any, // Cast to enum type
+        role: role as ParticipantRole, // Cast to enum type
         joinedAt: new Date(),
         hasJoined: true,
       });
@@ -237,7 +237,7 @@ export const meetingsRouter = createTRPCRouter({
     .input(z.object({
       token: z.string()
     }))
-    .query(async ({ ctx, input }) => {
+    .query(async ({ input }) => {
       // 1. Verify the token
       const [invite] = await db
         .select()

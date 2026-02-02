@@ -10,7 +10,6 @@ import {
   ArrowRight, Sparkles, Brain, LayoutDashboard, 
   ShieldCheck, CheckCircle2, PlayCircle, Zap 
 } from "lucide-react"
-import { cn } from "@/lib/utils"
 
 // --- Utility Components ---
 
@@ -109,7 +108,7 @@ export const HomeView = () => {
                       <div className="flex items-center gap-2 text-primary font-bold">
                         <Zap className="w-3 h-3 fill-current" /> Insight Detected
                       </div>
-                      <p className="text-muted-foreground">"Action Item: Update the Q3 Roadmap by Friday."</p>
+                      <p className="text-muted-foreground">&quot;Action Item: Update the Q3 Roadmap by Friday.&quot;</p>
                    </motion.div>
                </div>
             </div>

@@ -20,7 +20,6 @@ import { useTRPC } from "@/trpc/client";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { authClient } from "@/lib/auth-client";
 import { GeneratedAvatar } from "@/components/generated-avatar";
-import Image from "next/image";
 
 interface InviteScreenProps {
   token: string;
@@ -49,7 +48,7 @@ export function InviteScreen({
     ) {
       router.replace(`${data.meeting.id}`);
     }
-  }, [currentUser, data?.meeting?.createdByUserId, data?.meeting?.id, router]);
+  }, [currentUser, data?.meeting?.createdByUserId, data?.meeting?.id, router, data.meeting]);
 
 
   const acceptInvite = useMutation(

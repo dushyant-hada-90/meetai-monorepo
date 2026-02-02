@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { participantRole, ParticipantRole } from "@/db/schema";
 import { useState } from "react";
@@ -34,7 +34,7 @@ export function ShareDialog({ open, onOpenChange, meetingId }: Props) {
       setUrl(generatedUrl);
       await navigator.clipboard.writeText(generatedUrl);
       toast.success(`Copied ${role} invite link!`);
-    } catch (err) {
+    } catch {
       toast.error("Failed to generate link");
     } finally {
       setLoading(false);
