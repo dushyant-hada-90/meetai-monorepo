@@ -72,12 +72,12 @@ export const CallEnded = ({ duration = 0, participants = 0 }: CallEndedProps) =>
                                 View all meetings
                             </Link>
                         </Button>
-                        <Button asChild variant="outline" className="w-full">
+                        {/* <Button asChild variant="outline" className="w-full">
                             <Link href="/dashboard">
                                 <Home className="w-4 h-4 mr-2" />
                                 Back to dashboard
                             </Link>
-                        </Button>
+                        </Button> */}
                     </div>
                 </div>
             </div>

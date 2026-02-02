@@ -14,7 +14,7 @@ const Page = async ({ searchParams }: Props) => {
   const filters = await loadSearchParams(searchParams)
   
   // const { session } = await createTRPCContext(); // shares cached TRPC context
-  // if (!session) redirect('./sign-in'); // or redirect('/sign-in') for clarity
+  // if (!session) redirect('/sign-in'); // or redirect('/sign-in') for clarity
 
   const queryClient = getQueryClient()
   await queryClient.prefetchQuery(trpc.agents.getMany.queryOptions({

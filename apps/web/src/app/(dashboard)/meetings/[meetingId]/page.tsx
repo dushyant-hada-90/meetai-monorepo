@@ -14,16 +14,20 @@ const Page = async ({ params }: Props) => {
   const { meetingId } = await params
 
   const queryClient = getQueryClient()
-  void queryClient.prefetchQuery(
-    trpc.meetings.getOne.queryOptions({
-      id: meetingId
-    })
-  )
-  void queryClient.prefetchQuery(
-    trpc.meetings.getTranscript.queryOptions({
-      id: meetingId
-    })
-  )
+
+  // Ensure queries settle before hydration to avoid "pending" dehydrated states rejecting later.
+  await Promise.allSettled([
+    queryClient.prefetchQuery(
+      trpc.meetings.getOne.queryOptions({
+        id: meetingId
+      })
+    ),
+    queryClient.prefetchQuery(
+      trpc.meetings.getTranscript.queryOptions({
+        id: meetingId
+      })
+    )
+  ])
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <Suspense fallback={<MeetingIdViewLoading/>}>

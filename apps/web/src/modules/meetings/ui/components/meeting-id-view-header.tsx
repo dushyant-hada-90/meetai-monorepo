@@ -2,7 +2,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbS
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { DropdownMenuTrigger } from "@radix-ui/react-dropdown-menu";
-import { ChevronRightIcon, MoreVerticalIcon, PencilIcon, TrashIcon } from "lucide-react";
+import { ChevronRightIcon, MoreVerticalIcon, PencilIcon, Share2Icon, TrashIcon } from "lucide-react";
 import Link from "next/link";
 
 interface Props {
@@ -10,9 +10,10 @@ interface Props {
     meetingName: string;
     onEdit: () => void;
     onRemove: () => void;
+    onShare:()=>void
 }
 
-export const MeetingIdViewHeader = ({ meetingId, meetingName, onEdit, onRemove }: Props) => {
+export const MeetingIdViewHeader = ({ meetingId, meetingName, onEdit, onRemove ,onShare}: Props) => {
     return (
         <div className="flex items-center justify-between gap-x-2">
             <Breadcrumb>
@@ -50,6 +51,10 @@ export const MeetingIdViewHeader = ({ meetingId, meetingName, onEdit, onRemove }
                     <DropdownMenuItem onClick={onRemove}>
                         <TrashIcon className="size-4 text-black" />
                         Delete
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={onShare}>
+                        <Share2Icon className="size-4 text-black" />
+                        Share
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>

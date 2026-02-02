@@ -29,10 +29,15 @@ const formSchema = z.object({
     password: z.string().min(1, { message: "Password is required" })
 })
 
-export const SignInView = () => {
+interface Props {
+  redirect?: string
+}
+
+export const SignInView = ({redirect}:Props) => {
     const router = useRouter()
     const [error, setError] = useState<string | null>(null)
     const [pending, setPending] = useState(false)
+    const target = redirect?.startsWith("/") ? redirect : "/agents"
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -50,12 +55,13 @@ export const SignInView = () => {
             {
                 email:data.email,
                 password:data.password,
-                callbackURL:"/"
+                callbackURL: target
             },
             {
                 onSuccess:()=>{
                     setPending(false)
-                    router.push("/")
+                    router.push(target)
+
                 },
                 onError:({error})=>{
                     setPending(false)
@@ -71,11 +77,12 @@ export const SignInView = () => {
         authClient.signIn.social(
             {
                 provider:provider,
-                callbackURL:"/"
+                callbackURL: target
             },
             {
                 onSuccess: () => {
                     setPending(false)
+                    router.push(target)
                 },
                 onError: ({ error }) => {
                     setPending(false)
@@ -104,7 +111,7 @@ export const SignInView = () => {
                                         control={form.control}
                                         name="email"
                                         render={({ field }) => (
-                                            <FormItem>
+                                            <FormItem id="email">
                                                 <FormLabel>Email</FormLabel>
                                                 <FormControl>
                                                     <Input
@@ -121,7 +128,7 @@ export const SignInView = () => {
                                         control={form.control}
                                         name="password"
                                         render={({ field }) => (
-                                            <FormItem>
+                                            <FormItem id="password">
                                                 <FormLabel>Password</FormLabel>
                                                 <FormControl>
                                                     <Input
