@@ -1,48 +1,47 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-import { auth } from "@/lib/auth"
+export function middleware(request: NextRequest) {
+  const { pathname, search } = request.nextUrl
 
-const PUBLIC_FILE = /\.(.*)$/
-const PUBLIC_ROUTES = ["/", "/sign-in", "/sign-up"]
-const AUTH_ROUTES = ["/sign-in", "/sign-up"]
-const DEFAULT_REDIRECT = "/meetings"
-
-const isRouteMatch = (pathname: string, routes: string[]) =>
-  routes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
-
-const safeRedirect = (value?: string | null) => {
-  if (!value) return null
-  if (!value.startsWith("/")) return null
-  if (value.startsWith("//")) return null
-  return value
-}
-
-export async function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl
-
-  if (pathname.startsWith("/_next") || pathname.startsWith("/api") || PUBLIC_FILE.test(pathname)) {
+  // 1. Allow unrestricted access to public assets and API
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/static") ||
+    pathname.includes(".") // Catch-all for files (images, favicon, etc.)
+  ) {
     return NextResponse.next()
   }
 
-  const isPublicRoute = isRouteMatch(pathname, PUBLIC_ROUTES)
-  const isAuthRoute = isRouteMatch(pathname, AUTH_ROUTES)
-
-  const session = await auth.api.getSession({ headers: req.headers }).catch(() => null)
-  const isAuthenticated = Boolean(session)
-
-  const redirectToParam = req.nextUrl.searchParams.get("redirectTo")
-  const resolvedRedirect = safeRedirect(redirectToParam) || DEFAULT_REDIRECT
-
-  if (isAuthRoute && isAuthenticated) {
-    return NextResponse.redirect(new URL(resolvedRedirect, req.url))
+  // 2. Allow unrestricted access to the landing page
+  if (pathname === "/") {
+    return NextResponse.next()
   }
 
-  if (!isAuthenticated && !isPublicRoute) {
-    const loginUrl = new URL("/sign-in", req.url)
-    loginUrl.searchParams.set("redirectTo", `${pathname}${search}`)
+  // 3. Check if the session token cookie exists
+  // better-auth typically uses "better-auth.session_token" or "session_token"
+  const hasToken = 
+    request.cookies.has("better-auth.session_token") || 
+    request.cookies.has("session_token")
+
+  const isProtectedRoute =
+    pathname.startsWith("/agents") ||
+    pathname.startsWith("/meetings") ||
+    pathname.startsWith("/call") ||
+    pathname.startsWith("/upgrade")
+
+  // 4. UX Gate: If trying to access a protected route without a token cookie -> Redirect
+  // We do NOT perform full auth validation here (DB calls) to avoid Edge Runtime issues.
+  if (isProtectedRoute && !hasToken) {
+    const loginUrl = new URL("/sign-in", request.url)
+    loginUrl.searchParams.set("redirectTo", pathname + search)
     return NextResponse.redirect(loginUrl)
   }
+
+  // 5. Optional: If user is on a public auth route (sign-in/sign-up) and HAS a token,
+  // we do NOT redirect them here. We let the page/server-component handle that redirect.
+  // This prevents infinite loops if the cookie exists but is invalid/expired.
 
   return NextResponse.next()
 }
