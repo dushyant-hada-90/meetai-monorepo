@@ -10,10 +10,8 @@ export function middleware(req: NextRequest) {
   }
 
   // 2. Check if the session token cookie exists
-  // NOTE: Check your Application -> Cookies tab to confirm your specific cookie name.
-  // Common names are "better-auth.session_token", "next-auth.session-token", or just "session_token"
-  const hasToken = req.cookies.has("better-auth.session_token") || 
-                   req.cookies.has("session_token")
+  // NOTE: Better Auth may use "session_token" or "better-auth.session_token"
+  const hasToken = req.cookies.has("session_token") || req.cookies.has("better-auth.session_token")
 
   const isProtectedRoute =
     pathname.startsWith("/agents") ||

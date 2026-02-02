@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { authClient } from "@/lib/auth-client"
 
 /* ---------------------------------- utils --------------------------------- */
 
@@ -57,6 +58,8 @@ export const HomeView = () => {
 /* ---------------------------------- hero ---------------------------------- */
 
 function Hero() {
+  const { data: session, isPending } = authClient.useSession()
+
   return (
     <section className="relative flex-1 flex flex-col justify-center border-b overflow-hidden">
       {/* background gradient + blobs */}
@@ -100,15 +103,27 @@ function Hero() {
 
         <Fade delay={0.2}>
           <div className="mt-12 flex flex-col sm:flex-row justify-center gap-4">
-            <Button
-              size="lg"
-              className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:opacity-90"
-              asChild
-            >
-              <Link href="/sign-up">
-                Get started free <ArrowRight className="ml-2 w-4 h-4" />
-              </Link>
-            </Button>
+            {session ? (
+              <Button
+                size="lg"
+                className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:opacity-90"
+                asChild
+              >
+                <Link href="/agents">
+                  Go to Dashboard <ArrowRight className="ml-2 w-4 h-4" />
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                size="lg"
+                className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:opacity-90"
+                asChild
+              >
+                <Link href="/sign-up">
+                  Get started free <ArrowRight className="ml-2 w-4 h-4" />
+                </Link>
+              </Button>
+            )}
 
             <Button size="lg" variant="outline" asChild>
               <Link href="/demo">View live demo</Link>
@@ -296,6 +311,8 @@ function PreviewItem({ text }: { text: string }) {
 /* ---------------------------------- cta ---------------------------------- */
 
 function CTA() {
+  const { data: session } = authClient.useSession()
+
   return (
     <section className="py-28">
       <div className="container mx-auto px-4 max-w-4xl">
@@ -316,7 +333,9 @@ function CTA() {
           <Fade delay={0.15}>
             <div className="mt-10">
               <Button size="lg" variant="secondary" asChild>
-                <Link href="/sign-up">Create free account</Link>
+                <Link href={session ? "/agents" : "/sign-up"}>
+                  {session ? "Go to Dashboard" : "Create free account"}
+                </Link>
               </Button>
               <p className="mt-4 text-xs text-white/70">
                 No credit card required

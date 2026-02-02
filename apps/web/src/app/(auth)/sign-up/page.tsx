@@ -12,7 +12,7 @@ const Page = async ({ searchParams }: Props) => {
     headers: await headers(),
   })
 
-  const destination = redirectTo?.startsWith("/") ? redirectTo : "/agents";
+  const destination = redirectTo?.startsWith("/") ? redirectTo : "/meetings";
   if (session) {
     redirect(destination);
   }

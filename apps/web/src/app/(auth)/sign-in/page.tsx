@@ -20,7 +20,7 @@ const Page = async ({ searchParams }: Props) => {
   !redirectTo.startsWith("//") &&
   redirectTo !== "/"
     ? redirectTo
-    : "/";
+    : "/meetings";
 
   if (session) {
     redirect(destination);
