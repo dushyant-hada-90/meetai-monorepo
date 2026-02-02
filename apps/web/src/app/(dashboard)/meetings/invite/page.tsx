@@ -13,6 +13,11 @@ interface Props {
 }
 
 export default async function InvitePage({ searchParams}:Props) {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  })
+  if (!session) redirect("/sign-in")
+  
   // 1. Extract & Await Params (Next.js 15 requirement)
   const { token } = await searchParams;
 
