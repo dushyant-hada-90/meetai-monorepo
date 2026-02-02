@@ -37,7 +37,7 @@ export const SignInView = ({ redirect }: Props) => {
     const [pending, setPending] = useState(false)
 
     // 🔄 FIX: Default to "/" (Home) instead of "/agents"
-    const target = redirect?.startsWith("/") ? redirect : "/"
+    const target = redirect?.startsWith("/") ? redirect : "/meeings"
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
