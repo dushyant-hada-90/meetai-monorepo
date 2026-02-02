@@ -7,6 +7,14 @@ import {
   voice,
 } from '@livekit/agents';
 import * as google from '@livekit/agents-plugin-google';
+import {
+  RoomEvent,
+  Participant,
+  RemoteParticipant,
+  RemoteTrack,
+  RemoteTrackPublication,
+  TrackKind
+} from '@livekit/rtc-node';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'node:url';
 
@@ -26,16 +34,36 @@ export default defineAgent({
     console.log("----------------- AGENT STARTING ----------------------");
     await ctx.connect();
 
-    // 1. Initialize Sequence Counter
+    // 1. Initialize State Logic
     let transcriptIndex = 0;
-    
+    let lastActiveSpeakerId = "unknown_human";
+
+    // FIX 1: Use 'ActiveSpeakersChanged' (Plural)
+    ctx.room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+      if (speakers.length > 0) {
+        lastActiveSpeakerId = speakers[0].identity;
+        console.log(`[Agent] Active speaker changed to: ${lastActiveSpeakerId}`);
+      }
+    });
+
+    // FIX 2: Use 'TrackKind.KIND_AUDIO'
+    ctx.room.on(RoomEvent.TrackSubscribed, (
+      track: RemoteTrack, 
+      _publication: RemoteTrackPublication, 
+      participant: RemoteParticipant
+    ) => {
+      if (track.kind === TrackKind.KIND_AUDIO && participant) {
+         console.log(`[Agent] Subscribed to audio from: ${participant.identity}`);
+      }
+    });
+
+    // 2. Metadata Parsing
     const meetingId = ctx.room.name;
     if (!meetingId) {
       console.error("No meeting ID found in room name.");
       return;
     }
 
-    // 2. Metadata Parsing
     let currentMeeting = { id: "unknown", name: "Meeting" };
     let currentAgent = { name: "AI Assistant", instructions: "You are a helpful assistant." };
 
@@ -74,9 +102,18 @@ export default defineAgent({
       if (event.item.role === 'user') {
         assignedRole = "human";
         
-        // Fix: Use the first remote participant as the default "Human" speaker
-        const firstRemote = Array.from(ctx.room.remoteParticipants.values())[0];
-        speakerName = firstRemote?.identity || "unknown_user";
+        speakerName = lastActiveSpeakerId;
+        
+        // Fallback if variable is empty
+        if (speakerName === "unknown_human") {
+            const remotes = Array.from(ctx.room.remoteParticipants.values());
+            if (remotes.length > 0) {
+                const lastParticipant = remotes[remotes.length - 1];
+                if (lastParticipant) {
+                    speakerName = lastParticipant.identity;
+                }
+            }
+        }
       }
 
       const payload = {
@@ -89,9 +126,13 @@ export default defineAgent({
       };
 
       const data = new TextEncoder().encode(JSON.stringify(payload));
-      await ctx.room.localParticipant?.publishData(data, { reliable: true });
       
-      console.log(`[Broadcasting] #${payload.index} ${assignedRole}: ${text.substring(0, 30)}...`);
+      try {
+        await ctx.room.localParticipant?.publishData(data, { reliable: true });
+        console.log(`[Broadcasting] #${payload.index} ${assignedRole}: ${text.substring(0, 30)}...`);
+      } catch (err) {
+        console.error("Failed to publish transcript:", err);
+      }
     });
 
     // 5. Start Session

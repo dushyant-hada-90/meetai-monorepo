@@ -27,6 +27,7 @@
     "@livekit/agents": "^1.0.39",
     "@livekit/agents-plugin-google": "^1.0.39",
     "@livekit/noise-cancellation-node": "^0.1.9",
+    "@livekit/rtc-node": "^0.13.24",
     "@neondatabase/serverless": "github:neondatabase/serverless",
     "@types/ws": "^8.18.1",
     "dotenv": "^17.2.3",

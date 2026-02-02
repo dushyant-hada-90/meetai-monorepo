@@ -23,6 +23,9 @@ importers:
       '@livekit/noise-cancellation-node':
         specifier: ^0.1.9
         version: 0.1.9
+      '@livekit/rtc-node':
+        specifier: ^0.13.24
+        version: 0.13.24
       '@neondatabase/serverless':
         specifier: github:neondatabase/serverless
         version: https://codeload.github.com/neondatabase/serverless/tar.gz/2c51902827a043df0646caf6a5ed8d812e7fb9b6
