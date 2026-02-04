@@ -1,97 +1,160 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { participantRole, ParticipantRole } from "@/db/schema";
 import { useState } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { getMeetingInviteLink } from "../../server/meetingInvite";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Copy,
+  Check,
+  Share2,
+  Link,
+  UserCog,
+  Wand2,
+} from "lucide-react";
 
 interface Props {
-    open: boolean;
-    onOpenChange: (open: boolean) => void
-    meetingId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  meetingId: string;
 }
+
 export function ShareDialog({ open, onOpenChange, meetingId }: Props) {
   const [selectedRole, setSelectedRole] = useState<ParticipantRole | "">("");
   const [loading, setLoading] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
   const options = participantRole.enumValues as readonly ParticipantRole[];
 
-  const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
-      setUrl("");
-    }
-    onOpenChange(newOpen);
-  };
-
-  const handleCopyLink = async (role: ParticipantRole) => {
-    if (!role) return;
+  const handleGenerateLink = async () => {
+    if (!selectedRole) return;
     setLoading(true);
     try {
-      // Call the Server Action to get/create the link
-      const generatedUrl = await getMeetingInviteLink(meetingId, role);
+      const generatedUrl = await getMeetingInviteLink(
+        meetingId,
+        selectedRole as ParticipantRole
+      );
       setUrl(generatedUrl);
-      await navigator.clipboard.writeText(generatedUrl);
-      toast.success(`Copied ${role} invite link!`);
+      toast.success("Invite link generated");
     } catch {
-      toast.error("Failed to generate link");
+      toast.error("Failed to generate invite link");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleCopy = async () => {
+    if (!url) return;
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    toast.success("Copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleShareViaOS = () => {
-    if (url) {
-      navigator.share?.({ url });
-    }
+    url && navigator.share?.({ url });
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Share this link</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Link className="h-5 w-5 text-muted-foreground" />
+            Share meeting
+          </DialogTitle>
+          <DialogDescription>
+            Generate a role-based invite link to share access.
+          </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
-          <div>
-            <label className="text-sm font-medium">Select Role:</label>
-            <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as ParticipantRole)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a role" />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
+        <div className="space-y-5">
+          {/* Role selector */}
+          <Select
+            value={selectedRole}
+            onValueChange={(v) => setSelectedRole(v as ParticipantRole)}
+          >
+            <SelectTrigger className="h-11">
+              <UserCog className="mr-2 h-4 w-4 text-muted-foreground" />
+              <SelectValue placeholder="Select participant role" />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((role) => (
+                <SelectItem key={role} value={role}>
+                  {role}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Generated URL */}
           {url && (
-            <div>
-              <label className="text-sm font-medium">Share URL:</label>
-              <input type="text" readOnly value={url} className="w-full p-2 border rounded" />
+            <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+              <input
+                readOnly
+                value={url}
+                className="flex-1 bg-transparent text-sm outline-none"
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={handleCopy}
+                aria-label="Copy link"
+              >
+                {copied ? (
+                  <Check className="h-4 w-4 text-green-600" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
             </div>
           )}
-          <div className="flex gap-2">
-            <Button 
-              onClick={() => handleCopyLink(selectedRole as ParticipantRole)} 
+
+          {/* Actions */}
+          <div className="flex justify-between gap-2">
+            <Button
+              className="flex-1"
+              onClick={handleGenerateLink}
               disabled={!selectedRole || loading}
             >
               {loading ? (
                 <>
-                  <Spinner className="mr-2" />
-                  Generating...
+                  <Spinner className="mr-2 h-4 w-4" />
+                  Generating
                 </>
               ) : (
-                "Generate & Copy Link"
+                <>
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  Generate link
+                </>
               )}
             </Button>
-            <Button onClick={handleShareViaOS} disabled={!url || loading}>
-              Share via OS
-            </Button>
+
+            {url && (
+              <Button
+                size="icon"
+                variant="secondary"
+                onClick={handleShareViaOS}
+                aria-label="Share link"
+              >
+                <Share2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>
