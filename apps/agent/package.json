@@ -25,7 +25,9 @@
   "dependencies": {
     "@inngest/agent-kit": "^0.13.2",
     "@livekit/agents": "^1.0.39",
+    "@livekit/agents-plugin-deepgram": "^1.0.40",
     "@livekit/agents-plugin-google": "^1.0.39",
+    "@livekit/agents-plugin-silero": "^1.0.40",
     "@livekit/noise-cancellation-node": "^0.1.9",
     "@livekit/rtc-node": "^0.13.24",
     "@neondatabase/serverless": "github:neondatabase/serverless",
@@ -33,6 +35,7 @@
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
     "inngest": "^3.49.3",
+    "livekit-client": "^2.17.0",
     "postgres": "^3.4.8",
     "ws": "^8.19.0"
   },
