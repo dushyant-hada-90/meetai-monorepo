@@ -76,21 +76,29 @@ export const generateLivekitToken = async (body: TokenRequest) => {
     console.error("Failed to fetch meeting context:", error);
   }
 
+  // // ---------------------------------------------------------
+  // STEP 2: Prime or Update the Room with Metadata
   // ---------------------------------------------------------
-  // STEP 2: Prime the Room with Metadata
-  // ---------------------------------------------------------
-  // We explicitly create the room (or update it if it exists) 
-  // with the metadata BEFORE the participant joins.
   try {
+    // Attempt to create the room with metadata
     await roomService.createRoom({
       name: roomName,
-      emptyTimeout: 10*60, //in seconds
-      metadata: roomMetadata, // <--- THIS is where we push the data
+      emptyTimeout: 10 * 60, 
+      metadata: roomMetadata,
     });
-  } catch (e) {
-    // If room already exists, we might want to update it just in case
-    // typically createRoom is idempotent regarding existence, but updates metadata
-    console.log("Room might already exist or service error", e);
+  } catch (e: any) {
+    // If the room already exists, 'createRoom' might throw.
+    // We MUST ensure the existing room has the fresh metadata.
+    if (e.message?.includes('already exists') || e.code === 409) {
+      console.log(`[TokenGen] Room ${roomName} exists. Updating metadata...`);
+      try {
+        await roomService.updateRoomMetadata(roomName, roomMetadata);
+      } catch (updateErr) {
+        console.error("Failed to update room metadata:", updateErr);
+      }
+    } else {
+      console.log("Error creating room (non-fatal):", e);
+    }
   }
 
   // ---------------------------------------------------------

@@ -37,44 +37,7 @@ export const meetingsProcessing = inngest.createFunction(
   { id: "livekit/room_finished" },
   { event: "livekit/room_finished" },
   async ({ event, step }) => {
-    const { meetingId ,startedAt,endedAt} = event.data;
-    // await step.sleep("wait-for-processing", "10s");
-
-    // 2. Generate a token with Analytics (roomList) permissions
-    // const analyticsToken = await step.run("generate-analytics-token", async () => {
-    //   const at = new AccessToken(
-    //     process.env.LIVEKIT_API_KEY,
-    //     process.env.LIVEKIT_API_SECRET,
-    //     { ttl: "15m" }
-    //   );
-    //   at.addGrant({ roomList: true }); // Required for Analytics API
-    //   return at.toJwt();
-    // });
-
-    // data can be fetched directly if project has a paid plan
-    // const sessionData = await step.run("fetch-livekit-analytics", async () => {
-    //   const projectID = process.env.LIVEKIT_PROJECT_ID;
-    //   const url = `https://cloud-api.livekit.io/api/project/${projectID}/sessions/${roomSid}`;
-
-    //   const response = await fetch(url, {
-    //     method: 'GET',
-    //     headers: {
-    //       'Authorization': `Bearer ${analyticsToken}`,
-    //       'Accept': 'application/json',
-    //       'Content-Type': 'application/json'
-    //     },
-    //   });
-
-    //   if (!response.ok) {
-    //     // This will help you see if it's 401 (Auth) or 403 (Permissions)
-    //     const errorBody = await response.text();
-    //     throw new Error(`LiveKit API error: ${response.status} ${response.statusText} - ${errorBody}`);
-    //   }
-     
-    //   return response.json();
-    // });
-
-    // else on a free plan frontend will generate transcript and update db when calll is active and we will query db for it here
+    const { meetingId, startedAt, endedAt } = event.data;
 
     // --- STEP 1: update Meeting Data and then return the same ---
     const meeting = await step.run("mark-processing", async () => {
@@ -87,9 +50,8 @@ export const meetingsProcessing = inngest.createFunction(
         .where(eq(meetings.id, meetingId))
         .returning();
 
-      // console.log("DB Updated: Meeting status set to processing and saved transcript array.");
-      meeting.transcript.sort((a, b) => a.timestamp - b.timestamp)
-      // console.log("sorted transcript")
+      // Ensure transcript is sorted by time before processing
+      meeting.transcript.sort((a, b) => a.timestamp - b.timestamp);
       return meeting;
     });
 
@@ -98,8 +60,31 @@ export const meetingsProcessing = inngest.createFunction(
       const rawTranscript = meeting.transcript as TranscriptItem[];
       if (!rawTranscript || rawTranscript.length === 0) return "";
 
+      // ---------------------------------------------------------
+      // NEW LOGIC: Smart Merge of Consecutive Fragments
+      // ---------------------------------------------------------
+      // This combines fragmented lines like:
+      // [10:01] User: "I want to..."
+      // [10:02] User: "know about APIs."
+      // INTO:
+      // [10:01] User: "I want to... know about APIs."
+      // ---------------------------------------------------------
+      const mergedTranscript: TranscriptItem[] = [];
+
+      for (const item of rawTranscript) {
+        const lastItem = mergedTranscript[mergedTranscript.length - 1];
+
+        // If same speaker & role, merge the text
+        if (lastItem && lastItem.speaker === item.speaker && lastItem.role === item.role) {
+          lastItem.text += " " + item.text;
+        } else {
+          // New turn, push a copy to avoid mutating raw data
+          mergedTranscript.push({ ...item });
+        }
+      }
+
       // 1. Collect unique IDs for Users and Agents
-      const speakerIds = Array.from(new Set(rawTranscript.map((t) => t.speaker)));
+      const speakerIds = Array.from(new Set(mergedTranscript.map((t) => t.speaker)));
 
       // 2. Fetch User and Agent names in parallel
       const [users, agentRows] = await Promise.all([
@@ -116,11 +101,10 @@ export const meetingsProcessing = inngest.createFunction(
       agentRows.forEach((a) => nameMap.set(a.id, a.name ?? "Assistant"));
 
       // 3. Determine start time for relative timestamps
-      // We use the first message time as the baseline (00:00)
-      const startRef = rawTranscript[0].timestamp;
+      const startRef = mergedTranscript[0].timestamp;
 
-      // 4. Transform into readable string
-      return rawTranscript.map((item) => {
+      // 4. Transform into readable string using the MERGED transcript
+      return mergedTranscript.map((item) => {
         const relativeMs = Math.max(0, item.timestamp - startRef);
         const timestamp = formatRelativeTime(relativeMs);
 
@@ -153,12 +137,13 @@ export const meetingsProcessing = inngest.createFunction(
         .update(meetings)
         .set({
           summary: aiResponse as string,
-          transcript:meeting.transcript,
+          // We save the ORIGINAL transcript to DB for accuracy/playback sync,
+          // even though we used the merged one for AI generation.
+          transcript: meeting.transcript, 
           status: "completed",
         })
         .where(eq(meetings.id, meetingId)).returning();
     });
-
 
     return { success: true };
   }
