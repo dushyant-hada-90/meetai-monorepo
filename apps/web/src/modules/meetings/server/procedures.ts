@@ -8,7 +8,8 @@ import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MIN_PAGE_SIZE } from "@
 import { meetingsInsertSchema, meetingsUpdateSchema } from "../schemas"
 import { MeetingStatus } from "../types"
 import { generateLivekitToken } from "@/lib/stream-video"
-
+import { generateObject } from "ai";
+import { google } from "@ai-sdk/google";
 export const meetingsRouter = createTRPCRouter({
 
     // ---------------------------------------------------------
@@ -157,133 +158,133 @@ export const meetingsRouter = createTRPCRouter({
 
     // accept invite received via url
     acceptInvite: protectedProcedure
-    .input(z.object({ 
-      meetingId: z.string(),
-      token: z.string()
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const userId = ctx.auth.user.id;
+        .input(z.object({
+            meetingId: z.string(),
+            token: z.string()
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const userId = ctx.auth.user.id;
 
-      // 1. Check if Meeting Exists
-      const [meeting] = await db
-        .select()
-        .from(meetings)
-        .where(eq(meetings.id, input.meetingId))
-        .limit(1);
+            // 1. Check if Meeting Exists
+            const [meeting] = await db
+                .select()
+                .from(meetings)
+                .where(eq(meetings.id, input.meetingId))
+                .limit(1);
 
-      if (!meeting) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Meeting not found" });
-      }
+            if (!meeting) {
+                throw new TRPCError({ code: "NOT_FOUND", message: "Meeting not found" });
+            }
 
-      // 2. Check if user is ALREADY a participant
-      const [existingParticipant] = await db
-        .select()
-        .from(meetingParticipants)
-        .where(
-          and(
-            eq(meetingParticipants.meetingId, input.meetingId),
-            eq(meetingParticipants.userId, userId)
-          )
-        )
-        .limit(1);
+            // 2. Check if user is ALREADY a participant
+            const [existingParticipant] = await db
+                .select()
+                .from(meetingParticipants)
+                .where(
+                    and(
+                        eq(meetingParticipants.meetingId, input.meetingId),
+                        eq(meetingParticipants.userId, userId)
+                    )
+                )
+                .limit(1);
 
-      if (existingParticipant) {
-        return { success: true, role: existingParticipant.role };
-      }
+            if (existingParticipant) {
+                return { success: true, role: existingParticipant.role };
+            }
 
-      // 3. DETERMINE ROLE (The Logic Fix)
-      let role = "attendee"; // Default
+            // 3. DETERMINE ROLE (The Logic Fix)
+            let role = "attendee"; // Default
 
-      if (input.token) {
-        // Verify the token
-        const [invite] = await db
-          .select()
-          .from(meetingInvites)
-          .where(eq(meetingInvites.id, input.token))
-          .limit(1);
+            if (input.token) {
+                // Verify the token
+                const [invite] = await db
+                    .select()
+                    .from(meetingInvites)
+                    .where(eq(meetingInvites.id, input.token))
+                    .limit(1);
 
-        // Security Checks
-        if (!invite) {
-           throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid invite link" });
-        }
-        if (invite.meetingId !== input.meetingId) {
-           throw new TRPCError({ code: "BAD_REQUEST", message: "Link does not match meeting" });
-        }
-        if (new Date() > invite.expiresAt) {
-           throw new TRPCError({ code: "BAD_REQUEST", message: "Invite link expired" });
-        }
+                // Security Checks
+                if (!invite) {
+                    throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid invite link" });
+                }
+                if (invite.meetingId !== input.meetingId) {
+                    throw new TRPCError({ code: "BAD_REQUEST", message: "Link does not match meeting" });
+                }
+                if (new Date() > invite.expiresAt) {
+                    throw new TRPCError({ code: "BAD_REQUEST", message: "Invite link expired" });
+                }
 
-        // Grant the privileged role!
-        role = invite.role; 
-      }
+                // Grant the privileged role!
+                role = invite.role;
+            }
 
-      // 4. Insert Participant with the CORRECT role
-      await db.insert(meetingParticipants).values({
-        meetingId: input.meetingId,
-        userId: userId,
-        role: role as ParticipantRole, // Cast to enum type
-        joinedAt: new Date(),
-        hasJoined: true,
-      });
+            // 4. Insert Participant with the CORRECT role
+            await db.insert(meetingParticipants).values({
+                meetingId: input.meetingId,
+                userId: userId,
+                role: role as ParticipantRole, // Cast to enum type
+                joinedAt: new Date(),
+                hasJoined: true,
+            });
 
-      return { success: true, role };
-    }),
+            return { success: true, role };
+        }),
 
     // ---------------------------------------------------------
     // NEW: GET INVITE DETAILS
     // Validates the invite and returns meeting details for display
     // ---------------------------------------------------------
     getInviteDetails: protectedProcedure
-    .input(z.object({
-      token: z.string()
-    }))
-    .query(async ({ input }) => {
-      // 1. Verify the token
-      const [invite] = await db
-        .select()
-        .from(meetingInvites)
-        .where(eq(meetingInvites.id, input.token))
-        .limit(1);
+        .input(z.object({
+            token: z.string()
+        }))
+        .query(async ({ input }) => {
+            // 1. Verify the token
+            const [invite] = await db
+                .select()
+                .from(meetingInvites)
+                .where(eq(meetingInvites.id, input.token))
+                .limit(1);
 
-      if (!invite) {
-         throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid invite link" });
-      }
-      if (invite.meetingId !== invite.meetingId) {
-         throw new TRPCError({ code: "BAD_REQUEST", message: "Link does not match meeting" });
-      }
-      if (new Date() > invite.expiresAt) {
-         throw new TRPCError({ code: "BAD_REQUEST", message: "Invite link expired" });
-      }
+            if (!invite) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid invite link" });
+            }
+            if (invite.meetingId !== invite.meetingId) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "Link does not match meeting" });
+            }
+            if (new Date() > invite.expiresAt) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: "Invite link expired" });
+            }
 
-      // 2. Get meeting details
-      const [meeting] = await db
-        .select({
-          id: meetings.id,
-          name: meetings.name,
-          createdByUserId:meetings.createdByUserId,
-          createdByUsername: user.name,
-          createdByUserImage: user.image,
-          startsAt: meetings.startsAt,
-          agent: {
-            id: agents.id,
-            name: agents.name,
-          },
-        })
-        .from(meetings)
-        .innerJoin(agents, eq(meetings.agentId, agents.id))
-        .innerJoin(user, eq(meetings.createdByUserId, user.id))
-        .where(eq(meetings.id, invite.meetingId))
-        .limit(1);
+            // 2. Get meeting details
+            const [meeting] = await db
+                .select({
+                    id: meetings.id,
+                    name: meetings.name,
+                    createdByUserId: meetings.createdByUserId,
+                    createdByUsername: user.name,
+                    createdByUserImage: user.image,
+                    startsAt: meetings.startsAt,
+                    agent: {
+                        id: agents.id,
+                        name: agents.name,
+                    },
+                })
+                .from(meetings)
+                .innerJoin(agents, eq(meetings.agentId, agents.id))
+                .innerJoin(user, eq(meetings.createdByUserId, user.id))
+                .where(eq(meetings.id, invite.meetingId))
+                .limit(1);
 
-      if (!meeting) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Meeting not found" });
-      }
+            if (!meeting) {
+                throw new TRPCError({ code: "NOT_FOUND", message: "Meeting not found" });
+            }
 
-      return {
-        meeting,
-        role: invite.role
-      };
-    }),
+            return {
+                meeting,
+                role: invite.role
+            };
+        }),
 
     // ---------------------------------------------------------
     // 4. GENERATE LIVEKIT TOKEN
@@ -525,5 +526,81 @@ export const meetingsRouter = createTRPCRouter({
                 total: total.count,
                 totalPages,
             };
+        }),
+    // 11 ask ai questions about ended meeting
+    askAi: protectedProcedure
+        .input(z.object({
+            meetingId: z.string(),
+            question: z.string().min(3),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            // 1. Fetch Source of Truth from DB
+            // We only fetch what we need to save memory
+            const [meetingData] = await db
+                .select()
+                .from(meetings)
+                // Security Join: Only allow if user is a participant
+                .innerJoin(meetingParticipants, and(
+                    eq(meetingParticipants.meetingId, meetings.id),
+                    eq(meetingParticipants.userId, ctx.auth.user.id)
+                ))
+                .where(eq(meetings.id, input.meetingId));
+
+            if (!meetingData) {
+                throw new TRPCError({
+                    code: "NOT_FOUND",
+                    message: "Meeting not found or access denied.",
+                });
+            }
+
+            // 2. Prepare context
+            // We stringify the transcript array into a readable format for Gemini
+            const transcriptContext = meetingData.meetings.transcript
+                .map((t) => `[${t.role}] ${t.speaker}: ${t.text}`)
+                .join("\n");
+
+            try {
+
+
+                const result = await generateObject({
+                    model: google("gemini-2.5-flash-lite"),
+
+                    schema: z.object({
+                        answer: z
+                            .string()
+                            .describe("The direct answer to the user's question"),
+                        relatedQuestions: z
+                            .array(z.string())
+                            .length(3)
+                            .describe("3 follow-up questions"),
+                    }),
+
+                    system: `
+                        You are a meeting assistant for "MeetAI".
+
+                        Meeting Context
+                        Summary: ${meetingData.meetings.summary}
+                        Transcript: ${transcriptContext}
+
+                        Instructions
+                        - Answer strictly from the provided context.
+                        - If the answer is not available, say so explicitly.
+                        - Do not use markdown.
+                    `.trim(),
+
+                    prompt: input.question,
+                });
+
+                return {
+                    answer: result.object.answer,
+                    suggestions: result.object.relatedQuestions,
+                };
+            } catch (error) {
+                console.error("AI Generation Error:", error);
+                throw new TRPCError({
+                    code: "INTERNAL_SERVER_ERROR",
+                    message: "Failed to generate AI response.",
+                });
+            }
         }),
 })

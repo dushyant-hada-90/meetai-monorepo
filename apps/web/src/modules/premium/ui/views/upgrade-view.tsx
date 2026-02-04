@@ -56,12 +56,9 @@ export const UpgradeView = () => {
                                 }
                                 description={product.description}
                                 priceSuffix={
-                                    product.prices[0]?.amountType !== "UNKNOWN"
-                                        ? `/${product.prices[0].recurringInterval}`
-                                        : ""
+                                    `/${product.prices[0].recurringInterval}`
                                 }
                                 features={product.benefits
-                                    .filter(b => b.type !== "UNKNOWN")
                                     .map(b => b.description)
                                 }
 
