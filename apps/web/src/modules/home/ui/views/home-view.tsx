@@ -58,7 +58,7 @@ export const HomeView = () => {
 /* ---------------------------------- hero ---------------------------------- */
 
 function Hero() {
-  const { data: session, isPending } = authClient.useSession()
+  const { data: session } = authClient.useSession()
 
   return (
     <section className="relative flex-1 flex flex-col justify-center border-b overflow-hidden">

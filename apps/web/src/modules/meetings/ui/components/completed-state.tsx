@@ -48,7 +48,7 @@ export const CompletedState = ({ data }: Props) => {
                     <Transcript meetingId={data.id}/>
                 </TabsContent>
                 <TabsContent value="chat">
-                    <AiChat/>
+                    <AiChat meetingId={data.id}/>
                 </TabsContent>
                 <TabsContent value="summary">
                     <div className="bg-white rounded-lg border">

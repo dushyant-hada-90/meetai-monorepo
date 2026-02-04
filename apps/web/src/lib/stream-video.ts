@@ -83,13 +83,17 @@ export const generateLivekitToken = async (body: TokenRequest) => {
     // Attempt to create the room with metadata
     await roomService.createRoom({
       name: roomName,
-      emptyTimeout: 10 * 60, 
+      emptyTimeout: 10 * 60,
       metadata: roomMetadata,
     });
-  } catch (e: any) {
-    // If the room already exists, 'createRoom' might throw.
-    // We MUST ensure the existing room has the fresh metadata.
-    if (e.message?.includes('already exists') || e.code === 409) {
+  } catch (e: unknown) {
+    if (
+      e instanceof Error &&
+      (
+        e.message.includes("already exists") ||
+        ("code" in e && typeof (e as { code?: unknown }).code === "number" && (e as { code: number }).code === 409)
+      )
+    ) {
       console.log(`[TokenGen] Room ${roomName} exists. Updating metadata...`);
       try {
         await roomService.updateRoomMetadata(roomName, roomMetadata);
@@ -112,11 +116,11 @@ export const generateLivekitToken = async (body: TokenRequest) => {
     ttl: '10m',
   });
 
-  at.addGrant({ 
-      roomJoin: true,
+  at.addGrant({
+    roomJoin: true,
     room: roomName,
     roomList: true,
-    roomAdmin:true,
+    roomAdmin: true,
   });
   const token = await at.toJwt();
 
