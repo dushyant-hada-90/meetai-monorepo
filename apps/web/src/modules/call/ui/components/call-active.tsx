@@ -5,88 +5,62 @@ import {
   BarVisualizer,
   RoomAudioRenderer,
   VoiceAssistantControlBar,
+  AgentState, // <--- Imported this
   useTracks,
-  ParticipantTile,
   useLocalParticipant,
   useRoomContext,
-  useRemoteParticipants, // <--- 1. Import this
+  useRemoteParticipants,
+  useConnectionState,
+  useIsSpeaking,
 } from "@livekit/components-react";
-import { Track, RoomEvent, ParticipantKind } from "livekit-client";
+import { Track, RoomEvent, ParticipantKind, ConnectionState, Participant } from "livekit-client";
 import { useEffect, useMemo, useState } from "react";
 import { useTRPC } from "@/trpc/client";
 import { useMutation } from "@tanstack/react-query";
-import { Video, VideoOff, LogOut } from "lucide-react";
+import { Video, VideoOff, Mic, MicOff, PhoneOff } from "lucide-react";
 import "@livekit/components-styles";
 import { CallEnded } from "./call-ended";
+
+// Wrapper to render the actual video element safely
+import { VideoTrack as LiveKitVideoTrack } from "@livekit/components-react";
 
 /* ---------------- 1. The Designated Scribe Logic ---------------- */
 const TranscriptHandler = ({ meetingId }: { meetingId: string }) => {
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
-  const remoteParticipants = useRemoteParticipants(); // Get list of others
+  const remoteParticipants = useRemoteParticipants();
   const trpc = useTRPC();
 
-  // tRPC Mutation
   const { mutate: appendTranscript } = useMutation(
     trpc.meetings.appendTranscript.mutationOptions()
   );
 
-  // --- LEADER ELECTION ALGORITHM ---
-  // Calculates if "I" am the designated scribe (the oldest human participant)
   const amIScribe = useMemo(() => {
     if (!localParticipant || !localParticipant.joinedAt) return false;
-
     const myJoinTime = localParticipant.joinedAt.getTime();
 
-    // Check against every other participant in the room
     for (const p of remoteParticipants) {
-      // 1. Ignore the Agent (we don't want to compete with the bot)
-      if (p.kind === ParticipantKind.AGENT || p.identity.startsWith("agent-")) {
-        continue;
-      }
-
-      // 2. Ignore participants who haven't fully joined/synced time yet
+      if (p.kind === ParticipantKind.AGENT || p.identity.startsWith("agent-")) continue;
       if (!p.joinedAt) continue;
-
-      // 3. The Core Check: Is someone else OLDER than me?
-      // If yes, I am NOT the scribe. I defer to them.
-      if (p.joinedAt.getTime() < myJoinTime) {
-        return false;
-      }
-
-      // Tie-breaker: If timestamps are identical (rare), use Identity string sorting
-      if (p.joinedAt.getTime() === myJoinTime && p.identity < localParticipant.identity) {
-        return false;
-      }
+      if (p.joinedAt.getTime() < myJoinTime) return false;
+      if (p.joinedAt.getTime() === myJoinTime && p.identity < localParticipant.identity) return false;
     }
-
-    // If we survived the loop, we are the oldest human. We are the Scribe.
     return true;
   }, [localParticipant, remoteParticipants]);
 
-  // Debugging helper (Visible in Console)
-  useEffect(() => {
-    // console.log(`[Scribe Status] Role: ${amIScribe ? "👑 SCRIBE (Active)" : "👁️ VIEWER (Passive)"}`);
-  }, [amIScribe]);
-
   useEffect(() => {
     if (!room) return;
-
     const handleData = (payload: Uint8Array) => {
-      // 1. GATEKEEPER: If I'm not the scribe, I ignore the save responsibility.
       if (!amIScribe) return;
-
       const decoder = new TextDecoder();
       try {
         const data = JSON.parse(decoder.decode(payload));
         if (data.type === "transcript_update") {
-          // console.log("👑 Scribe saving line:", data);
-
           appendTranscript({
             meetingId,
             line: {
-              role: data.role,       // "human" | "assistant"
-              speaker: data.speaker, // The AgentId or UserId from the data packet
+              role: data.role,
+              speaker: data.speaker,
               text: data.text,
               timestamp: data.timestamp,
             },
@@ -96,42 +70,119 @@ const TranscriptHandler = ({ meetingId }: { meetingId: string }) => {
         console.error("Failed to parse data packet", e);
       }
     };
-
     room.on(RoomEvent.DataReceived, handleData);
-    return () => {
-      room.off(RoomEvent.DataReceived, handleData);
+    
+    // FIX: Explicitly return void to satisfy useEffect cleanup type
+    return () => { 
+        room.off(RoomEvent.DataReceived, handleData); 
     };
-  }, [room, meetingId, appendTranscript, amIScribe]); // Re-binds listener if scribe status changes
+  }, [room, meetingId, appendTranscript, amIScribe]);
 
   return null;
 };
 
-/* ---------------- UI Components (Unchanged) ---------------- */
-function AgentStatus({ state }: { state: string }) {
-  const config = {
-    initializing: { label: "Initializing…", color: "bg-yellow-400" },
-    listening: { label: "Listening", color: "bg-blue-400" },
-    speaking: { label: "Speaking", color: "bg-emerald-500" },
-    thinking: { label: "Thinking", color: "bg-purple-400" },
-  } as const;
-  const current = config[state as keyof typeof config] ?? config.initializing;
-  return (
-    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-neutral-800 border border-white/10 shadow-sm">
-      <span className={`h-2 w-2 rounded-full ${current.color} ${state === "speaking" ? "animate-pulse" : ""}`} />
-      <span className="text-xs font-medium text-neutral-300 uppercase tracking-wider">{current.label}</span>
-    </div>
-  );
-}
+/* ---------------- UI Components ---------------- */
 
-function TileWrapper({ children }: { children: React.ReactNode }) {
+// 1. Participant Tile Component
+function CustomParticipantTile({ 
+  participant, 
+  trackRef, 
+  isLocal = false 
+}: { 
+  participant: Participant, 
+  trackRef?: any,
+  isLocal?: boolean 
+}) {
+  const isSpeaking = useIsSpeaking(participant);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(participant.isCameraEnabled);
+  const [isMicEnabled, setIsMicEnabled] = useState(participant.isMicrophoneEnabled);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setIsVideoEnabled(participant.isCameraEnabled);
+      setIsMicEnabled(participant.isMicrophoneEnabled);
+    };
+    // Listen to track mute/unmute events
+    participant.on(RoomEvent.TrackMuted, handleUpdate);
+    participant.on(RoomEvent.TrackUnmuted, handleUpdate);
+    
+    // Also update immediately in case it changed before listener attached
+    handleUpdate();
+
+    return () => {
+      participant.off(RoomEvent.TrackMuted, handleUpdate);
+      participant.off(RoomEvent.TrackUnmuted, handleUpdate);
+    };
+  }, [participant]);
+
   return (
-    <div className="relative rounded-2xl overflow-hidden bg-neutral-900 border border-white/5 flex items-center justify-center w-full h-full shadow-2xl">
-      <div className="w-full h-full flex items-center justify-center">
-        {children}
+    <div className={`relative group h-full w-full overflow-hidden rounded-2xl bg-neutral-900 border transition-all duration-300 ${
+      isSpeaking ? "border-indigo-500 shadow-[0_0_0_2px_rgba(99,102,241,0.5)]" : "border-white/10 shadow-lg"
+    }`}>
+      
+      {/* Video Layer */}
+      {trackRef && isVideoEnabled ? (
+         <div className={`h-full w-full ${isLocal ? "-scale-x-100" : ""}`}>
+            <LiveKitVideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
+         </div>
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-neutral-800">
+           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-neutral-700 text-neutral-400 text-xl font-bold">
+             {participant.identity?.slice(0, 2).toUpperCase() || "??"}
+           </div>
+        </div>
+      )}
+
+      {/* Overlays */}
+      <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent opacity-100 transition-opacity">
+        <div className="flex items-center gap-2">
+           {!isMicEnabled && (
+             <div className="rounded-full bg-red-500/20 p-1.5 text-red-500">
+               <MicOff size={12} />
+             </div>
+           )}
+           <span className="text-xs font-medium text-white drop-shadow-md">
+             {isLocal ? "You" : participant.identity}
+           </span>
+        </div>
       </div>
     </div>
   );
 }
+
+// FIX: Updated `state` type from string to AgentState
+function AgentTile({ state, audioTrack }: { state: AgentState; audioTrack: any }) {
+  return (
+    <div className="relative h-full w-full overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-950/50 to-purple-950/50 border border-indigo-500/20 shadow-2xl flex items-center justify-center">
+        {/* Animated Background */}
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-overlay"></div>
+        
+        <div className="relative z-10 flex flex-col items-center gap-6">
+           <div className="relative">
+              <div className={`absolute -inset-4 rounded-full bg-indigo-500/20 blur-xl transition-all duration-500 ${state === 'speaking' ? 'opacity-100 scale-110' : 'opacity-0 scale-100'}`} />
+              <BarVisualizer
+                state={state}
+                track={audioTrack}
+                barCount={7}
+                options={{ minHeight: 40, maxHeight: 120 }}
+                className="h-32 w-48 text-indigo-400"
+              />
+           </div>
+           
+           <div className="flex flex-col items-center gap-2">
+              <h3 className="text-lg font-semibold text-indigo-100">AI Assistant</h3>
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/20 border border-white/5 backdrop-blur-sm">
+                 <div className={`h-1.5 w-1.5 rounded-full ${state === 'speaking' ? 'bg-indigo-400 animate-pulse' : 'bg-neutral-500'}`} />
+                 <span className="text-[10px] font-medium text-neutral-400 uppercase tracking-widest">
+                   {state === 'listening' ? 'Listening' : state === 'speaking' ? 'Speaking' : 'Standby'}
+                 </span>
+              </div>
+           </div>
+        </div>
+    </div>
+  );
+}
+
 
 /* ---------------- Main Component ---------------- */
 interface CallActiveProps {
@@ -143,6 +194,7 @@ export function CallActive({ meetingName, meetingId }: CallActiveProps) {
   const { state, audioTrack } = useVoiceAssistant();
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
+  const connectionState = useConnectionState();
 
   const tracks = useTracks(
     [Track.Source.Camera, Track.Source.ScreenShare],
@@ -150,19 +202,24 @@ export function CallActive({ meetingName, meetingId }: CallActiveProps) {
   );
 
   const [ended, setEnded] = useState(false);
-  const [cameraEnabled, setCameraEnabled] = useState(true);
+  const [isCameraOn, setIsCameraOn] = useState(true);
+  const [isMicOn, setIsMicOn] = useState(true);
 
-  const totalTiles = tracks.length + 1;
-  const gridClass = useMemo(() => {
-    if (totalTiles === 1) return "grid-cols-1 max-w-3xl";
-    if (totalTiles === 2) return "grid-cols-1 md:grid-cols-2 max-w-6xl";
-    return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 max-w-7xl";
-  }, [totalTiles]);
+  useEffect(() => {
+    setIsCameraOn(localParticipant.isCameraEnabled);
+    setIsMicOn(localParticipant.isMicrophoneEnabled);
+  }, [localParticipant]);
 
   const toggleCamera = async () => {
-    const next = !cameraEnabled;
-    await localParticipant.setCameraEnabled(next);
-    setCameraEnabled(next);
+    const newVal = !isCameraOn;
+    setIsCameraOn(newVal);
+    await localParticipant.setCameraEnabled(newVal);
+  };
+
+  const toggleMic = async () => {
+    const newVal = !isMicOn;
+    setIsMicOn(newVal);
+    await localParticipant.setMicrophoneEnabled(newVal);
   };
 
   const handleLeave = async () => {
@@ -170,77 +227,101 @@ export function CallActive({ meetingName, meetingId }: CallActiveProps) {
     setEnded(true);
   };
 
-  if (ended) return <CallEnded />;
+  const totalTiles = tracks.length + 1; 
+  const gridClass = useMemo(() => {
+    if (totalTiles === 1) return "grid-cols-1"; 
+    if (totalTiles === 2) return "grid-cols-1 md:grid-cols-2";
+    if (totalTiles <= 4) return "grid-cols-2";
+    return "grid-cols-2 md:grid-cols-3";
+  }, [totalTiles]);
+
+  if (ended || connectionState === ConnectionState.Disconnected) return <CallEnded />;
 
   return (
-    <div className="h-screen w-full bg-neutral-950 text-white flex flex-col overflow-hidden font-sans">
-
-      {/* --- INVISIBLE LOGIC --- */}
-      {/* 2. Insert the Scribe Logic here */}
+    <div className="flex h-screen w-full flex-col bg-neutral-950 text-white font-sans overflow-hidden">
+      
       <TranscriptHandler meetingId={meetingId} />
       <RoomAudioRenderer />
 
       {/* HEADER */}
-      <header className="h-16 flex-none flex items-center justify-between px-6 border-b border-white/10 bg-neutral-900/50 backdrop-blur-md z-10">
-        <div className="flex items-center gap-3">
-          <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-          <h1 className="text-sm font-medium tracking-wide text-neutral-400 uppercase">{meetingName}</h1>
-        </div>
-        <button
-          onClick={handleLeave}
-          className="group flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 transition-all duration-200"
-        >
-          <LogOut size={16} />
-          <span className="text-sm font-semibold">End Session</span>
-        </button>
+      <header className="absolute top-0 left-0 right-0 z-50 flex h-16 items-center justify-between px-6 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
+         <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-neutral-900/40 px-4 py-2 backdrop-blur-md border border-white/5">
+            <span className="flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            <span className="text-sm font-medium tracking-wide text-neutral-200">{meetingName}</span>
+            <div className="h-4 w-px bg-white/10 mx-1" />
+            <span className="text-xs text-neutral-400">{String(totalTiles)} People</span>
+         </div>
       </header>
 
       {/* MAIN GRID */}
-      <main className="flex-1 p-4 md:p-6 flex flex-col items-center justify-center w-full">
-        <div className={`grid ${gridClass} gap-6 w-full h-full max-h-[800px]`}>
-          {/* AGENT TILE */}
-          <TileWrapper>
-            <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-b from-neutral-800/30 to-neutral-900/30">
-              <div className="relative">
-                <BarVisualizer
-                  state={state}
-                  track={audioTrack}
-                  barCount={5}
-                  options={{ minHeight: 24, maxHeight: 80 }}
-                  className="h-48 w-64 text-emerald-400"
-                />
-                <div className="absolute inset-0 bg-emerald-500/20 blur-3xl rounded-full -z-10" />
-              </div>
-              <div className="flex flex-col items-center gap-4 mt-8">
-                <AgentStatus state={state} />
-              </div>
+      <main className="flex-1 p-4 pt-20 pb-24 flex items-center justify-center">
+         <div className={`grid ${gridClass} gap-4 w-full h-full max-w-7xl auto-rows-fr`}>
+            
+            {/* 1. AGENT TILE */}
+            <div className="h-full min-h-[300px]">
+               <AgentTile state={state} audioTrack={audioTrack} />
             </div>
-          </TileWrapper>
 
-          {/* HUMAN TILES */}
-          {tracks.map((track) => (
-            <TileWrapper key={`${track.participant.identity}-${track.source}`}>
-              <ParticipantTile trackRef={track} className="w-full h-full object-cover rounded-xl" />
-            </TileWrapper>
-          ))}
-        </div>
+            {/* 2. REMOTE & LOCAL PARTICIPANTS */}
+            {tracks.map((track) => (
+              <div key={track.publication.trackSid} className="h-full min-h-[300px]">
+                 <CustomParticipantTile 
+                    participant={track.participant} 
+                    trackRef={track} 
+                    isLocal={track.participant === localParticipant}
+                 />
+              </div>
+            ))}
+            
+            {/* Fallback Local Tile (if camera is off but mic is on, track might not be in 'useTracks' list yet depending on subscription) */}
+            {!tracks.find(t => t.participant === localParticipant) && (
+               <div className="h-full min-h-[300px]">
+                  <CustomParticipantTile participant={localParticipant} isLocal={true} />
+               </div>
+            )}
+         </div>
       </main>
 
-      {/* FOOTER */}
-      <footer className="h-24 flex-none flex items-center justify-center gap-4 border-t border-white/10 bg-neutral-900/80 backdrop-blur-lg pb-4">
-        <button
-          onClick={toggleCamera}
-          className={`flex items-center justify-center h-12 w-12 rounded-full border transition-all duration-200 ${cameraEnabled
-            ? "bg-neutral-800 border-white/10 hover:bg-neutral-700 text-white"
-            : "bg-rose-500/20 border-rose-500/50 text-rose-500"
-            }`}
-        >
-          {cameraEnabled ? <Video size={20} /> : <VideoOff size={20} />}
-        </button>
-        <div className="bg-neutral-800/50 rounded-full px-4 py-2 border border-white/5 flex items-center gap-2">
-          <VoiceAssistantControlBar controls={{ leave: false }} />
-        </div>
-      </footer>
+      {/* FOOTER: Controls */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
+         <div className="flex items-center gap-3 rounded-2xl bg-neutral-900/90 p-3 shadow-2xl backdrop-blur-xl border border-white/10">
+            
+            <button 
+               onClick={toggleMic}
+               className={`p-4 rounded-xl transition-all duration-200 ${isMicOn ? 'bg-neutral-800 hover:bg-neutral-700 text-white' : 'bg-red-500/20 text-red-500 hover:bg-red-500/30'}`}
+               title="Toggle Microphone"
+            >
+               {isMicOn ? <Mic size={20} /> : <MicOff size={20} />}
+            </button>
+
+            <button 
+               onClick={toggleCamera}
+               className={`p-4 rounded-xl transition-all duration-200 ${isCameraOn ? 'bg-neutral-800 hover:bg-neutral-700 text-white' : 'bg-red-500/20 text-red-500 hover:bg-red-500/30'}`}
+               title="Toggle Camera"
+            >
+               {isCameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+            </button>
+
+            <div className="h-8 w-px bg-white/10 mx-1" />
+
+            <div className="flex gap-2">
+                <VoiceAssistantControlBar controls={{ leave: false }} />
+            </div>
+
+            <div className="h-8 w-px bg-white/10 mx-1" />
+
+            <button 
+               onClick={handleLeave}
+               className="bg-red-600 hover:bg-red-700 text-white p-4 rounded-xl transition-colors"
+               title="Leave Call"
+            >
+               <PhoneOff size={20} />
+            </button>
+         </div>
+      </div>
     </div>
   );
 }
