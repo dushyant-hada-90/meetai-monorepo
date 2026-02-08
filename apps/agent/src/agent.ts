@@ -1,195 +1,149 @@
-import 'dotenv/config';
-import {
-  type JobContext,
-  ServerOptions,
-  cli,
-  defineAgent,
-  voice,
-} from '@livekit/agents';
+import "dotenv/config";
+import { defineAgent, type JobContext, WorkerOptions, cli, voice } from '@livekit/agents';
 import * as google from '@livekit/agents-plugin-google';
-import * as deepgram from '@livekit/agents-plugin-deepgram';
-import * as silero from '@livekit/agents-plugin-silero';
-import {
-  RoomEvent,
-  Participant,
-  RemoteParticipant,
-  RemoteTrack,
-  RemoteTrackPublication,
-  TrackKind
-} from '@livekit/rtc-node';
-import dotenv from 'dotenv';
 import { fileURLToPath } from 'node:url';
-
-// Load environment variables
-dotenv.config({ path: '.env.local' });
-
-class Assistant extends voice.Agent {
-  public agentName: string;
-
-  constructor(name: string, instructions: string) {
-    super({ instructions });
-    this.agentName = name;
-  }
-}
+import { Modality } from '@google/genai';
+import { RoomEvent, Participant } from '@livekit/rtc-node';
 
 export default defineAgent({
   entry: async (ctx: JobContext) => {
-    console.log("----------------- AGENT STARTING ----------------------");
-    
-    // 1. Load VAD (Critical for Modular Pipeline)
-    const vad = await silero.VAD.load();
-    
     await ctx.connect();
+    console.log("✅ Agent connected. Room:", ctx.room.name);
+    console.log("🔍 Metadata on Connect:", ctx.room.metadata);
 
-    // --- 1. State & Heuristics ---
-    let transcriptIndex = 0;
-    let lastActiveSpeakerId = "unknown_human";
+    // --- 1. DYNAMIC CONTEXT STATE ---
+    let contextState = {
+      meetingName: "Default Meeting",
+      agentName: "AI Assistant",
+      instructions: "You are a helpful assistant."
+    };
 
-    // FIX: Active Speaker Detection (Ignoring the Agent)
-    ctx.room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
-      for (const speaker of speakers) {
-        // Only update if the speaker is NOT the agent (LocalParticipant)
-        if (speaker.identity !== ctx.room.localParticipant?.identity) {
-          lastActiveSpeakerId = speaker.identity;
-          console.log(`[Speaker Detect] Human speaker changed to: ${lastActiveSpeakerId}`);
-        }
-      }
-    });
-
-    // Debug log for audio subscriptions
-    ctx.room.on(RoomEvent.TrackSubscribed, (
-      track: RemoteTrack,
-      _publication: RemoteTrackPublication,
-      participant: RemoteParticipant
-    ) => {
-      if (track.kind === TrackKind.KIND_AUDIO && participant) {
-        console.log(`[Agent] Subscribed to audio from: ${participant.identity}`);
-      }
-    });
-
-    // --- 2. Metadata Parsing ---
-    const meetingId = ctx.room.name;
-    let currentMeeting = { id: "unknown", name: "Meeting" };
-    let currentAgent = { name: "AI Assistant", instructions: "You are a helpful assistant." };
-
-    if (ctx.room.metadata) {
+    // Helper to parse metadata safely
+    const parseMetadata = (metadata: string | undefined) => {
+      if (!metadata) return null;
       try {
-        const data = JSON.parse(ctx.room.metadata);
-        if (data.meetingData) currentMeeting = data.meetingData;
-        if (data.agentData) currentAgent = data.agentData;
+        const data = JSON.parse(metadata);
+        return {
+           meetingName: data.meetingData?.name || "Default Meeting",
+           agentName: data.agentData?.name || "AI Assistant",
+           instructions: data.agentData?.instructions || "You are a helpful assistant."
+        };
       } catch (e) {
-        console.error("Failed to parse metadata", e);
+        console.error("⚠️ Invalid JSON metadata:", metadata);
+        return null;
       }
+    };
+
+    // Initial Load (Read from the token you just generated)
+    const initialData = parseMetadata(ctx.room.metadata);
+    if (initialData) {
+      contextState = initialData;
+      console.log(`🧠 Initial Persona: ${contextState.agentName} for "${contextState.meetingName}"`);
     }
 
-    // --- 3. Configure Instructions ---
-    const finalInstructions = `
-      You are a helpful voice AI assistant named ${currentAgent.name}.
-      The current meeting name is "${currentMeeting.name}".
-      
-      Your Core Instructions: ${currentAgent.instructions}
-      
-      IMPORTANT:
-      1. Default language is English.
-      2. Do NOT use markdown formatting (no asterisks, no bolding, no headers). 
-      3. Do NOT use bullet points (e.g. "*"). Instead, use phrases like "First," "Second," or just pause.
-      4. Speak in natural, conversational plain text suitable for text-to-speech.
-      5. Keep your responses concise and professional.
-    `;
+    // Helper to generate the prompt string
+    const getSystemPrompt = () => {
+      return `
+        You are a helpful voice AI assistant named ${contextState.agentName}.
+        The current meeting is "${contextState.meetingName}".
+        
+        Your Core Instructions: ${contextState.instructions}
+        
+        IMPORTANT:
+        - Speak in natural, conversational plain text.
+        - Keep your responses concise and professional.
+        - Your knowledge cutoff is 2025-01.
+      `;
+    };
 
-    // --- 4. Initialize Modular Pipeline ---
-    // We use the Modular setup (STT -> LLM -> TTS) because it supports multi-user mixing
-    // and allows us to use Deepgram TTS (which has no strict rate limits).
+    // --- 2. INITIALIZE AGENT (Pass string, not function) ---
+    const agent = new voice.Agent({
+      instructions: getSystemPrompt(), // <--- Calling the function immediately to get a STRING
+    });
+
     const session = new voice.AgentSession({
-      vad: vad,
-      
-      // Ears: Deepgram (Mixes audio from all users automatically)
-      stt: new deepgram.STT(), 
-      
-      // Brain: Gemini 2.0 Flash Exp (Smartest, Fastest, Free-tier friendly Text model)
-      llm: new google.LLM({
-        model: 'gemini-2.5-flash', 
-      }),
-
-      // Mouth: Deepgram (UNLIMITED Free Tier - Fixes the 429 Crash)
-      tts: new deepgram.TTS({
-        model: 'aura-asteria-en' // High quality voice
+      llm: new google.beta.realtime.RealtimeModel({
+        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+        voice: 'Puck',
+        temperature: 0.8,
+        instructions: getSystemPrompt(), 
+        modalities: [Modality.AUDIO],
       }),
     });
 
-    // Error logging
-    session.on(voice.AgentSessionEventTypes.Error, (err) => {
-      console.error("----------------- AGENT ERROR -----------------");
-      console.error(err);
-    });
-
-    // State logging
-    session.on(voice.AgentSessionEventTypes.AgentStateChanged, (state) => {
-      console.log(`[State Change] Agent is now: ${state}`);
-    });
-
-    // --- 5. Transcript Broadcasting ---
-    session.on(voice.AgentSessionEventTypes.ConversationItemAdded, async (event) => {
-      const text = event.item.textContent;
-      if (!text || text.trim().length === 0) return;
-
-      let assignedRole = "assistant";
-      let speakerName = currentAgent.name;
-
-      // Attribute user speech to the last detected ACTIVE HUMAN speaker
-      if (event.item.role === 'user') {
-        assignedRole = "human";
-        speakerName = lastActiveSpeakerId;
-
-        // Fallback: If no speaker detected yet, use the last joined remote
-        if (speakerName === "unknown_human") {
-          const remotes = Array.from(ctx.room.remoteParticipants.values());
-          if (remotes.length > 0) {
-            speakerName = remotes[remotes.length - 1]?.identity || "unknown";
-          }
-        }
+    // --- 3. LIVE METADATA LISTENER ---
+    // Since we can't update agent.instructions directly, we update the state
+    // and let the *session* know for the next turn if possible, or just rely on the next generation.
+    ctx.room.on(RoomEvent.RoomMetadataChanged, (metadata) => {
+      console.log("🔄 Metadata Updated:", metadata);
+      const newData = parseMetadata(metadata);
+      if (newData) {
+        contextState = newData;
+        console.log(`🧠 Brain Updated: Now acting as ${contextState.agentName}`);
+        
+        // RE-GENERATE REPLY triggers a context update in most LLM sessions
+        // We can't force the 'agent' object to change, but we can change what we tell the LLM next.
       }
+    });
 
-      const payload = {
-        role: assignedRole,
-        speaker: speakerName,
-        text: text,
-        timestamp: Date.now(),
+    // --- 4. BROADCAST HELPER ---
+    const broadcast = (role: 'human' | 'assistant', text: any, isFinal: boolean) => {
+      let safeText = "";
+      if (typeof text === 'string') safeText = text;
+      else if (typeof text === 'object') safeText = text.text || text.message || JSON.stringify(text);
+
+      if (!safeText || safeText.trim() === "" || safeText === "{}") return;
+
+      const speakerName = role === 'human' ? "User" : contextState.agentName;
+
+      console.log(`📡 BROADCAST [${speakerName}]: "${safeText.substring(0, 30)}..."`);
+
+      const payload = JSON.stringify({
         type: 'transcript_update',
-        index: transcriptIndex++,
-      };
+        role: role,
+        speaker: speakerName,
+        text: safeText,
+        timestamp: Date.now(),
+        isFinal: isFinal
+      });
 
-      console.log("logging payload ->", payload);
+      // FIX: Optional chaining to prevent crash on disconnect
+      ctx.room.localParticipant?.publishData(new TextEncoder().encode(payload), { reliable: true });
+    };
 
-      const data = new TextEncoder().encode(JSON.stringify(payload));
+    // --- 5. EVENT LISTENERS ---
+    // @ts-ignore
+    session.on('user_input_transcribed', (e: any) => {
+      const text = typeof e === 'string' ? e : e.text;
+      const isFinal = e.isFinal ?? false;
+      broadcast('human', text, isFinal);
+    });
 
-      try {
-        await ctx.room.localParticipant?.publishData(data, { reliable: true });
-        console.log(`[Broadcasting] #${payload.index} ${assignedRole}: ${text.substring(0, 30)}...`);
-      } catch (err) {
-        console.error("Failed to publish transcript:", err);
+    // @ts-ignore
+    session.on('conversation_item_added', (e: any) => {
+      const item = e.item || e; 
+      if (item.type !== 'message' && !item.role) return;
+
+      let extractedText = "";
+      if (typeof item.content === 'string') extractedText = item.content;
+      else if (Array.isArray(item.content)) {
+         extractedText = item.content.map((p: any) => (typeof p === 'string' ? p : p.text || "")).join(" ");
+      }
+
+      if (extractedText) {
+          const role = item.role === 'user' ? 'human' : 'assistant';
+          broadcast(role, extractedText, true);
       }
     });
 
-    // --- 6. Start the Session ---
-    await session.start({
-      agent: new Assistant(currentAgent.name, finalInstructions),
-      room: ctx.room,
-      outputOptions: {
-        transcriptionEnabled: true,
-        syncTranscription: false,
-      }
-    });
+    await session.start({ agent, room: ctx.room });
 
-    // Initial Greeting
-    const handle = session.generateReply({
-      instructions: `Greet the user as ${currentAgent.name}. Mention that you are ready for the "${currentMeeting.name}" meeting.`,
+    // Initial Greeting using dynamic name
+    // We pass the instructions HERE again to ensure the very first message is correct
+    await session.generateReply({ 
+        instructions: `Greet the user as ${contextState.agentName} and mention the meeting "${contextState.meetingName}".` 
     });
-
-    await handle.waitForPlayout();
   },
 });
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url) }));
-}
+cli.runApp(new WorkerOptions({ agent: fileURLToPath(import.meta.url) }));
