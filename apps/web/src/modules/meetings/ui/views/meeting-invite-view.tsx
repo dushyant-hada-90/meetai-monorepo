@@ -18,7 +18,7 @@ import { Spinner } from "@/components/ui/spinner";
 
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
+import { useAuth } from "@/modules/auth/ui/components/auth-provider";
 import { GeneratedAvatar } from "@/components/generated-avatar";
 
 interface InviteScreenProps {
@@ -30,7 +30,8 @@ export function InviteScreen({
 }: InviteScreenProps) {
   const router = useRouter();
   const trpc = useTRPC();
-  const currentUser = authClient.useSession().data?.user
+  const { session } = useAuth();
+  const currentUser = session?.user;
 
   const [isAccepting, setIsAccepting] = useState(false);
 

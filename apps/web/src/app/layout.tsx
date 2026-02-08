@@ -5,6 +5,7 @@ import { TRPCReactProvider } from "@/trpc/client";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider } from "@/modules/auth/ui/components/auth-provider";
 
 const inter = Inter({
   variable: "--font-geist-sans",
@@ -28,6 +29,7 @@ export default function RootLayout({
   return (
     <>
     <NuqsAdapter>
+    <AuthProvider>
     <TRPCReactProvider>
       <html lang="en">
         <body
@@ -38,6 +40,7 @@ export default function RootLayout({
         </body>
       </html>
     </TRPCReactProvider>
+    </AuthProvider>
     </NuqsAdapter></>
   );
 }

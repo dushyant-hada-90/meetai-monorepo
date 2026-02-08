@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { useMutation } from '@tanstack/react-query';
 import { useTRPC } from '@/trpc/client';
 import { toast } from 'sonner';
-import { authClient } from '@/lib/auth-client';
+import { useAuth } from '@/modules/auth/ui/components/auth-provider';
 import { GeneratedAvatar } from '@/components/generated-avatar';
 
 // --- Types ---
@@ -28,7 +28,8 @@ const MIN_QUESTION_LENGTH = 3;
 
 export function AiChat({ meetingId }: Props) {
   const trpc = useTRPC();
-  const currentUser = authClient.useSession().data?.user
+  const { session } = useAuth();
+  const currentUser = session?.user;
 
   const askAiMutation = useMutation(
     trpc.meetings.askAi.mutationOptions()

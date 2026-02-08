@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { authClient } from "@/lib/auth-client"
+import { useAuth } from "@/modules/auth/ui/components/auth-provider"
 
 /* ---------------------------------- utils --------------------------------- */
 
@@ -58,7 +58,7 @@ export const HomeView = () => {
 /* ---------------------------------- hero ---------------------------------- */
 
 function Hero() {
-  const { data: session } = authClient.useSession()
+  const { session } = useAuth()
 
   return (
     <section className="relative flex-1 flex flex-col justify-center border-b overflow-hidden">
@@ -311,7 +311,7 @@ function PreviewItem({ text }: { text: string }) {
 /* ---------------------------------- cta ---------------------------------- */
 
 function CTA() {
-  const { data: session } = authClient.useSession()
+  const { session } = useAuth()
 
   return (
     <section className="py-28">
