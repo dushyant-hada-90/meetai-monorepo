@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Mic, MicOff, Video, VideoOff, Settings, Loader2 } from "lucide-react"
+import { Mic, MicOff, Video, VideoOff, Settings } from "lucide-react"
 
 interface Props {
   onJoin: (opts: { audio: boolean; video: boolean; deviceId?: { audio?: string; video?: string } }) => void

@@ -12,8 +12,9 @@ import {
   useRemoteParticipants,
   useConnectionState,
   useIsSpeaking,
+  TrackReference,
 } from "@livekit/components-react";
-import { Track, RoomEvent, ParticipantKind, ConnectionState, Participant } from "livekit-client";
+import { Track, RoomEvent, ParticipantKind, ConnectionState, Participant, LocalAudioTrack, RemoteAudioTrack } from "livekit-client";
 import { useEffect, useMemo, useState } from "react";
 import { useTRPC } from "@/trpc/client";
 import { useMutation } from "@tanstack/react-query";
@@ -90,7 +91,7 @@ function CustomParticipantTile({
   isLocal = false 
 }: { 
   participant: Participant, 
-  trackRef?: any,
+  trackRef?: TrackReference,
   isLocal?: boolean 
 }) {
   const isSpeaking = useIsSpeaking(participant);
@@ -151,7 +152,7 @@ function CustomParticipantTile({
 }
 
 // FIX: Updated `state` type from string to AgentState
-function AgentTile({ state, audioTrack }: { state: AgentState; audioTrack: any }) {
+function AgentTile({ state, audioTrack }: { state: AgentState; audioTrack: TrackReference | undefined }) {
   return (
     <div className="relative h-full w-full overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-950/50 to-purple-950/50 border border-indigo-500/20 shadow-2xl flex items-center justify-center">
         {/* Animated Background */}
@@ -162,7 +163,7 @@ function AgentTile({ state, audioTrack }: { state: AgentState; audioTrack: any }
               <div className={`absolute -inset-4 rounded-full bg-indigo-500/20 blur-xl transition-all duration-500 ${state === 'speaking' ? 'opacity-100 scale-110' : 'opacity-0 scale-100'}`} />
               <BarVisualizer
                 state={state}
-                track={audioTrack}
+                track={audioTrack?.publication?.track as LocalAudioTrack | RemoteAudioTrack}
                 barCount={7}
                 options={{ minHeight: 40, maxHeight: 120 }}
                 className="h-32 w-48 text-indigo-400"
