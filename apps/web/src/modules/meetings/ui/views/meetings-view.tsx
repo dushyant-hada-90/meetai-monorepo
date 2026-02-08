@@ -25,7 +25,7 @@ export const MeetingsView = () => {
         // In v5, the callback receives the 'query' object
         const currentData = query.state.data;
 
-        const isAnyProcessing = currentData?.items?.some(item => item.status === "active" || "processing") ?? false;
+        const isAnyProcessing = currentData?.items?.some(item => item.status === "active" || item.status === "processing") ?? false;
 
         if (isAnyProcessing) {
           return 5000; // Poll every 2s
