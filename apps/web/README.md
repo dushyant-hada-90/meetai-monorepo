@@ -34,12 +34,11 @@ MeetAI lets teams run LiveKit video calls, invite collaborators, and have AI age
 - Auth/Billing: Better Auth with GitHub/Google providers and Polar checkout/portal.
 
 ## Screenshots
-```
-![Landing](public/screenshots/01-landing.png)
-![Dashboard](public/screenshots/02-dashboard.png)
-![Live call](public/screenshots/03-call.png)
-![Summary](public/screenshots/04-summary.png)
-```
+
+![Landing](./public/screenshots/01-landing.png)
+![Dashboard](./public/screenshots/02-dashboard.png)
+![Live call](./public/screenshots/03-call.png)
+![Summary](./public/screenshots/04-summary.png)
 
 ## Prerequisites
 - Node.js 20+
