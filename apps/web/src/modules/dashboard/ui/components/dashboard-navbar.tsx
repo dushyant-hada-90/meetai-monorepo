@@ -6,6 +6,7 @@ import { PanelLeftCloseIcon, PanelLeftIcon, SearchIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useSidebar } from "@/components/ui/sidebar"
 import { DashboardCommand } from "./dashboard-command"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export const DashboardNavBar = () => {
     const { state, toggleSidebar, isMobile } = useSidebar()
@@ -48,6 +49,10 @@ export const DashboardNavBar = () => {
                         <span className="text-xs">&#8984;/ctrl</span>K
                     </kbd>
                 </Button>
+
+                <div className="ml-auto">
+                    <ThemeToggle />
+                </div>
             </nav >
         </>
     )

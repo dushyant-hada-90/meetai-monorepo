@@ -1,349 +1,409 @@
-"use client"
-
-import React from "react"
 import Link from "next/link"
-import { motion } from "framer-motion"
+import { ThemeToggle } from "@/components/theme-toggle"
 import {
   ArrowRight,
-  Brain,
-  ShieldCheck,
-  LayoutDashboard,
+  Bolt,
   CheckCircle2,
-  Sparkles,
+  MicOff,
+  PlayCircle,
+  Rocket,
+  Brain,
+  Captions,
+  Network,
+  AudioLines,
 } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useAuth } from "@/modules/auth/ui/components/auth-provider"
-
-/* ---------------------------------- utils --------------------------------- */
-
-const Fade = ({
-  children,
-  delay = 0,
-  className = "",
-}: {
-  children: React.ReactNode
-  delay?: number
-  className?: string
-}) => (
-  <motion.div
-    initial={{ opacity: 0, y: 16 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: "-80px" }}
-    transition={{ duration: 0.4, ease: "easeOut", delay }}
-    className={className}
-  >
-    {children}
-  </motion.div>
-)
-
-/* ---------------------------------- page ---------------------------------- */
 
 export const HomeView = () => {
   return (
-    <main className="min-h-screen bg-background text-foreground overflow-x-hidden">
-      <div className="min-h-screen flex flex-col">
-        <Hero />
-        <SocialProof />
-      </div>
-      <Features />
-      <ProductPreview />
-      <CTA />
+    <main className="bg-background text-foreground min-h-screen flex flex-col font-sans antialiased">
+      <Navbar />
+
+      <section className="flex-grow pt-24 pb-16 relative overflow-hidden">
+        <div
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] pointer-events-none z-0"
+          style={{ background: "radial-gradient(circle at center, rgba(54,226,112,0.12) 0%, rgba(10,10,10,0) 70%)" }}
+        />
+
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <HeroSection />
+          <FeaturesSection />
+          <AboutSection />
+          <Footer />
+        </div>
+      </section>
     </main>
   )
 }
 
-/* ---------------------------------- hero ---------------------------------- */
-
-function Hero() {
-  const { session } = useAuth()
-
+function Navbar() {
   return (
-    <section className="relative flex-1 flex flex-col justify-center border-b overflow-hidden">
-      {/* background gradient + blobs */}
-      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-emerald-500/10 via-background to-background" />
-      <div className="absolute -top-32 -left-32 w-96 h-96 bg-emerald-400/20 rounded-full blur-3xl" />
-      <div className="absolute top-40 -right-32 w-96 h-96 bg-teal-400/20 rounded-full blur-3xl" />
-
-      <div className="container mx-auto px-4 py-24 text-center max-w-5xl">
-        <Fade>
-          <Badge className="mb-6 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-foreground border-emerald-500/30">
-            <Sparkles className="w-3 h-3 mr-1 text-emerald-500" />
-            AI‑powered meeting intelligence
-          </Badge>
-        </Fade>
-
-        <Fade delay={0.05}>
-          <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
-            Meetings that{" "}
-            <span className="bg-gradient-to-r from-emerald-500 via-teal-500 to-lime-400 bg-clip-text text-transparent">
-              turn talk into action
-            </span>
-          </h1>
-        </Fade>
-
-        <Fade delay={0.1}>
-          <p className="mt-6 text-lg text-muted-foreground max-w-3xl mx-auto">
-            MeetAI joins your meetings, understands the conversation, and
-            automatically generates summaries, decisions, and action items —
-            ready to share, search, and execute.
-          </p>
-        </Fade>
-
-        {/* product bullets */}
-        <Fade delay={0.15}>
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm max-w-4xl mx-auto">
-            <HeroPoint text="Instant meeting summaries" />
-            <HeroPoint text="Action items with owners & deadlines" />
-            <HeroPoint text="Export to Notion, Slack & CRMs" />
+    <header className="fixed top-0 w-full z-50 border-b border-border bg-background/80 backdrop-blur-md">
+      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="flex items-center gap-3 group cursor-pointer">
+          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary group-hover:scale-105 transition-transform duration-300">
+            <AudioLines size={20} />
           </div>
-        </Fade>
+          <span className="font-bold text-lg tracking-tight text-foreground">MeetAI</span>
+        </div>
 
-        <Fade delay={0.2}>
-          <div className="mt-12 flex flex-col sm:flex-row justify-center gap-4">
-            {session ? (
-              <Button
-                size="lg"
-                className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:opacity-90"
-                asChild
-              >
-                <Link href="/agents">
-                  Go to Dashboard <ArrowRight className="ml-2 w-4 h-4" />
-                </Link>
-              </Button>
-            ) : (
-              <Button
-                size="lg"
-                className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:opacity-90"
-                asChild
-              >
-                <Link href="/sign-up">
-                  Get started free <ArrowRight className="ml-2 w-4 h-4" />
-                </Link>
-              </Button>
-            )}
+        <nav className="hidden md:flex items-center gap-8">
+          <Link className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" href="#features">
+            Features
+          </Link>
+          <Link className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" href="/upgrade">
+            Pricing
+          </Link>
+          <Link className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" href="#about">
+            About
+          </Link>
+          <Link className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" href="#docs">
+            Docs
+          </Link>
+        </nav>
 
-            <Button size="lg" variant="outline" asChild>
-              <Link href="/demo">View live demo</Link>
-            </Button>
-          </div>
-        </Fade>
-      </div>
-    </section>
-  )
-}
-
-function HeroPoint({ text }: { text: string }) {
-  return (
-    <div className="flex items-center justify-center gap-2 rounded-xl border bg-background/70 backdrop-blur px-4 py-3 shadow-sm">
-      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-      <span>{text}</span>
-    </div>
-  )
-}
-
-
-/* ------------------------------- social proof ------------------------------ */
-
-function SocialProof() {
-  return (
-    <section className="py-10 bg-muted/20">
-      <div className="container mx-auto px-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          <Stat value="12k+" label="Meetings analyzed" />
-          <Stat value="94%" label="Action items captured" />
-          <Stat value="<2s" label="Post-call summary" />
-          <Stat value="SOC-2" label="Security ready" />
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          <Link className="hidden sm:block text-sm font-medium text-foreground hover:text-primary transition-colors" href="/sign-in">
+            Sign In
+          </Link>
+          <button className="h-9 px-4 rounded-lg bg-primary text-black text-sm font-bold hover:bg-[#2dc460] transition-colors flex items-center gap-2 shadow-sm shadow-primary/20">
+            <span>Get Started</span>
+            <ArrowRight size={16} />
+          </button>
         </div>
       </div>
-    </section>
+    </header>
   )
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
+function HeroSection() {
   return (
-    <div>
-      <div className="text-3xl font-bold bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">
-        {value}
-      </div>
-      <div className="text-xs mt-1 text-muted-foreground uppercase tracking-wide">
-        {label}
-      </div>
-    </div>
-  )
-}
+    <div className="grid lg:grid-cols-2 gap-16 items-center pt-12 pb-24">
+      <div className="flex flex-col gap-8 max-w-2xl">
+        <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold leading-[1.1] tracking-tight">
+          Your AI That <br />
+          <span className="text-primary drop-shadow-[0_0_30px_rgba(54,226,112,0.2)]">Attends Meetings</span> <br />
+          For You
+        </h1>
 
-/* -------------------------------- features -------------------------------- */
+        <p className="text-lg text-muted-foreground leading-relaxed max-w-lg">
+          MeetAI joins your calls, records audio, writes notes, and automatically captures action items. Focus on the conversation, not the keyboard.
+        </p>
 
-function Features() {
-  return (
-    <section className="py-28">
-      <div className="container mx-auto px-4 max-w-6xl">
-        <Fade>
-          <h2 className="text-3xl md:text-4xl font-bold text-center">
-            Designed for real teams
-          </h2>
-        </Fade>
-
-        <div className="mt-16 grid md:grid-cols-3 gap-8">
-          <Feature
-            icon={<Brain />}
-            title="Autonomous agents"
-            text="Agents that attend meetings, understand context, and continuously improve summaries."
-            gradient="from-emerald-500 to-teal-500"
-            delay={0}
-          />
-          <Feature
-            icon={<LayoutDashboard />}
-            title="Unified workspace"
-            text="All transcripts, decisions, and action items searchable in one place."
-            gradient="from-teal-500 to-lime-400"
-            delay={0.05}
-          />
-          <Feature
-            icon={<ShieldCheck />}
-            title="Enterprise-grade security"
-            text="Encrypted by default. Designed to meet SOC-2 and GDPR standards."
-            gradient="from-lime-400 to-emerald-500"
-            delay={0.1}
-          />
+        <div className="flex flex-col sm:flex-row gap-4 pt-2">
+          <Link href="/meetings" className="h-12 px-8 rounded-xl bg-primary text-black text-base font-bold hover:bg-[#2dc460] transition-all hover:scale-[1.02] flex items-center justify-center gap-2 shadow-[0_0_40px_-10px_rgba(54,226,112,0.3)]">
+            <span>Start for Free</span>
+            <Rocket size={20} />
+          </Link>
+          <button className="h-12 px-8 rounded-xl bg-transparent border border-border text-foreground text-base font-bold hover:bg-muted transition-all flex items-center justify-center gap-2">
+            <PlayCircle size={20} />
+            <span>View Demo</span>
+          </button>
         </div>
       </div>
-    </section>
-  )
-}
 
-function Feature({
-  icon,
-  title,
-  text,
-  gradient,
-  delay,
-}: {
-  icon: React.ReactNode
-  title: string
-  text: string
-  gradient: string
-  delay: number
-}) {
-  return (
-    <Fade delay={delay}>
-      <Card className="h-full relative overflow-hidden">
-        <div
-          className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${gradient}`}
-        />
-        <CardHeader>
-          <div
-            className={`w-11 h-11 rounded-xl bg-gradient-to-r ${gradient} text-white flex items-center justify-center mb-4`}
-          >
-            {icon}
+      <div className="relative" style={{ perspective: "1000px" }}>
+        <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-blue-500/20 rounded-3xl blur-2xl opacity-30 transition-opacity duration-700" />
+
+        <div className="relative bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col aspect-[4/3] transform transition-transform duration-500 hover:rotate-y-2 hover:rotate-x-2">
+          <div className="h-10 bg-muted border-b border-border flex items-center px-4 gap-2">
+            <div className="w-3 h-3 rounded-full bg-[#FF5F57]" />
+            <div className="w-3 h-3 rounded-full bg-[#FEBC2E]" />
+            <div className="w-3 h-3 rounded-full bg-[#28C840]" />
+            <div className="flex-1 text-center text-xs text-muted-foreground font-medium">Weekly Sync - MeetAI</div>
           </div>
-          <CardTitle>{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">{text}</p>
-        </CardContent>
-      </Card>
-    </Fade>
-  )
-}
 
-/* ----------------------------- product preview ----------------------------- */
+          <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 p-4 grid grid-cols-2 gap-4 bg-background">
+              <VideoTile
+                name="Sarah (Product)"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCgGji7H27NRD4-nGeK9muwQLD7FuP14g1kEdtHO3AxI0JDNisHfVQpAqUXJJx-KQYER9eHZn8ObcU03bkVehkHZW-AHNFXb3Xs_yr89fXx27i2K6xft2WEYLssDtDwCuvf4DhGkkvMEz0Kff5JIx8Be6RgkmLi45_41qpWoVBXhfXPg5zhLNm4e6jJ3SoVlLHXBzSDdcjaQqfyeUprEUtKmODccLfIdVx79e9WH7uU7UQgntEdpQHtRMRpOjc06YOvO4Kg_V79F38"
+              />
+              <VideoTile
+                name="David (Eng)"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBYpXwuAOSmW5ffAGM5UCZ_KVgRwJydYhXJCWP96rFJF6GyTJJUIRYPZgV6DcEjZkdm8tRvEN_Akmeb9j542b2jrfb-WmcDIJyU04jWUsOsa0FXPJ9g2QNF2boDqTtfHDRzMXNvU8RUrnSBFbSabCEKHQqGuCoyN4XNleysdhoZmmkkQWFxDUmH1mf3P3GFlo5-qoq8p62XvrzTgq9K211Gzz7dWxcFM6C3Jh04W551inaryiPRyNKyiEd224BokMqm8hGUSH1QKk"
+              />
+              <VideoTile
+                name="Marcus (Design)"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCP4_nkg2PZeWdyDCwvyqvvi9pCZLlQ7S6QA-otlvgw54BJfjGdgP1x8cf8_RbaXunI3mRnRY0cI-VQ0m9l4fQyiZwcsqpgr1qPSOBf9s-jTrB5HCpp8SVqLxEgLGP_6Oi_lEFEpI4r1h9x3i86yJi7tm3JYCys7zPq6Fu6iRA-K0nSUhO2wYsx77Rh6-kAp06JijqvhLiWqvmbqX6IojdsfWGVVAtwcd91UFZqloacciAgJsPC2WIEsmDu58etFw0wFzreAXCwH4s"
+                muted
+              />
 
-function ProductPreview() {
-  return (
-    <section className="py-24 bg-gradient-to-b from-muted/40 to-background border-y">
-      <div className="container mx-auto px-4 max-w-6xl">
-        <Fade>
-          <h2 className="text-3xl md:text-4xl font-bold text-center">
-            From call → clarity in seconds
-          </h2>
-        </Fade>
-
-        <Fade delay={0.1}>
-          <p className="mt-4 text-muted-foreground text-center max-w-2xl mx-auto">
-            MeetAI listens once, then works forever — organizing every meeting
-            into searchable, structured knowledge.
-          </p>
-        </Fade>
-
-        <Fade delay={0.15}>
-          <div className="mt-16 grid md:grid-cols-2 gap-10 items-center">
-            {/* left: workflow */}
-            <div className="space-y-4">
-              <PreviewItem text="Live transcription with speaker detection" />
-              <PreviewItem text="AI‑generated summary & key decisions" />
-              <PreviewItem text="Action items auto‑assigned to participants" />
-              <PreviewItem text="One workspace for all past meetings" />
+              <div className="bg-card border border-primary/20 rounded-xl relative flex flex-col items-center justify-center gap-3">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-primary/30 blur-xl rounded-full animate-pulse" />
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-primary to-[#22c55e] flex items-center justify-center relative z-10 shadow-lg shadow-primary/20">
+                    <AudioLines size={32} className="text-black" />
+                  </div>
+                </div>
+                <div className="px-2 py-1 bg-primary/10 rounded text-xs font-bold text-primary border border-primary/20">MeetAI Pilot</div>
+              </div>
             </div>
 
-            {/* right: visual container */}
-            <div className="relative rounded-2xl border bg-background/70 backdrop-blur p-8 shadow-lg">
-              <div className="absolute -top-4 -right-4 w-24 h-24 bg-emerald-400/30 rounded-full blur-2xl" />
-              <div className="space-y-3 text-sm">
-                <div className="font-medium">Meeting Summary</div>
-                <ul className="text-muted-foreground space-y-2 list-disc list-inside">
-                  <li>Decision: Launch onboarding redesign next sprint</li>
-                  <li>Action: Alex → prepare Figma by Friday</li>
-                  <li>Action: Team → review metrics</li>
-                </ul>
+            <div className="w-64 bg-card border-l border-border p-4 flex flex-col gap-4 hidden sm:flex">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Live Transcript</h3>
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              </div>
+
+              <div className="flex flex-col gap-3 overflow-hidden" style={{ maskImage: "linear-gradient(to bottom, black 70%, transparent 100%)" }}>
+                <TranscriptLine initials="S" color="indigo" text="Sarah" message="Let's review the Q3 roadmap timeline." />
+                <TranscriptLine initials="D" color="orange" text="David" message="Backend integration is on track for Friday." />
+
+                <div className="mt-2 p-3 rounded-lg bg-primary/5 border border-primary/10 flex flex-col gap-2">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Bolt size={14} />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Action Item Detected</span>
+                  </div>
+                  <p className="text-xs text-foreground">David to finalize backend integration by Friday.</p>
+                  <button className="w-full py-1 bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-bold rounded transition-colors">
+                    Add to Jira
+                  </button>
+                </div>
+
+                <TranscriptLine initials="M" color="cyan" text="Marcus" message="I'll have the mocks ready by EOD." faded />
               </div>
             </div>
           </div>
-        </Fade>
-      </div>
-    </section>
-  )
-}
+        </div>
 
-
-function PreviewItem({ text }: { text: string }) {
-  return (
-    <li className="flex items-start gap-3">
-      <CheckCircle2 className="w-5 h-5 text-emerald-500 mt-0.5" />
-      <span>{text}</span>
-    </li>
-  )
-}
-
-/* ---------------------------------- cta ---------------------------------- */
-
-function CTA() {
-  const { session } = useAuth()
-
-  return (
-    <section className="py-28">
-      <div className="container mx-auto px-4 max-w-4xl">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-500 via-teal-500 to-lime-400 text-white px-8 py-20 text-center shadow-xl">
-          <Fade>
-            <h2 className="text-4xl font-bold">
-              Stop taking notes. Start making decisions.
-            </h2>
-          </Fade>
-
-          <Fade delay={0.1}>
-            <p className="mt-4 text-white/80 text-lg max-w-xl mx-auto">
-              MeetAI works silently in the background so you can focus on the
-              conversation.
-            </p>
-          </Fade>
-
-          <Fade delay={0.15}>
-            <div className="mt-10">
-              <Button size="lg" variant="secondary" asChild>
-                <Link href={session ? "/agents" : "/sign-up"}>
-                  {session ? "Go to Dashboard" : "Create free account"}
-                </Link>
-              </Button>
-              <p className="mt-4 text-xs text-white/70">
-                No credit card required
-              </p>
+        {/* <div className="absolute -right-4 top-20 bg-card/70 backdrop-blur border border-border p-4 rounded-xl shadow-2xl border-l-4 border-l-primary max-w-[240px] hidden lg:block">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0">
+              <CheckCircle2 size={18} />
             </div>
-          </Fade>
+            <div>
+              <h4 className="text-sm font-bold text-foreground">Task Created</h4>
+              <p className="text-xs text-muted-foreground mt-1">"Update Q3 Roadmap" assigned to Alex.</p>
+            </div>
+          </div>
+        </div>  */}
+      </div>
+    </div>
+  )
+}
+
+type TranscriptLineProps = {
+  initials: string
+  color: "indigo" | "orange" | "cyan"
+  text: string
+  message: string
+  faded?: boolean
+}
+
+function TranscriptLine({ initials, color, text, message, faded }: TranscriptLineProps) {
+  const palette: Record<TranscriptLineProps["color"], { bg: string; text: string }> = {
+    indigo: { bg: "bg-indigo-500/20", text: "text-indigo-400" },
+    orange: { bg: "bg-orange-500/20", text: "text-orange-400" },
+    cyan: { bg: "bg-cyan-500/20", text: "text-cyan-400" },
+  }
+
+  return (
+    <div className={`flex gap-2 ${faded ? "opacity-50" : ""}`}>
+      <div className={`w-6 h-6 rounded-full ${palette[color].bg} ${palette[color].text} flex items-center justify-center text-[10px] font-bold shrink-0`}>
+        {initials}
+      </div>
+      <div className="text-xs text-muted-foreground leading-relaxed">
+        <span className="text-foreground font-medium">{text}:</span> {message}
+      </div>
+    </div>
+  )
+}
+
+type VideoTileProps = {
+  name: string
+  src: string
+  muted?: boolean
+}
+
+function VideoTile({ name, src, muted }: VideoTileProps) {
+  return (
+    <div className="bg-muted rounded-xl overflow-hidden relative group">
+      <img className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" src={src} alt={name} />
+      <div className="absolute bottom-3 left-3 px-2 py-1 bg-black/60 backdrop-blur rounded text-xs font-medium text-white">{name}</div>
+      {muted ? (
+        <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
+          <MicOff size={14} className="text-white" />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function TrustedLogos() {
+  return (
+    <div className="pt-10 mt-4 border-t border-border flex flex-col gap-6">
+      <p className="text-xs text-muted-foreground font-semibold tracking-[0.2em] uppercase">
+        Powering productivity for forward-thinking teams
+      </p>
+      <div className="flex flex-wrap gap-10 items-center opacity-50 grayscale hover:grayscale-0 transition-all duration-700">
+        <svg className="h-6 w-auto text-muted-foreground hover:text-foreground transition-colors" fill="currentColor" viewBox="0 0 100 30">
+          <path d="M10,15 L20,5 L30,15 L40,5 M60,25 L90,25" fill="none" stroke="currentColor" strokeWidth="3" />
+        </svg>
+        <svg className="h-6 w-auto text-muted-foreground hover:text-foreground transition-colors" fill="currentColor" viewBox="0 0 100 30">
+          <circle cx="15" cy="15" r="10" fill="none" stroke="currentColor" strokeWidth="3" />
+          <rect x="35" y="5" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="3" />
+          <path d="M70,15 L90,15" stroke="currentColor" strokeWidth="3" />
+        </svg>
+        <svg className="h-6 w-auto text-muted-foreground hover:text-foreground transition-colors" fill="currentColor" viewBox="0 0 100 30">
+          <path d="M10,5 L10,25 L30,25 M50,5 L50,25 M70,5 L90,25" fill="none" stroke="currentColor" strokeWidth="3" />
+        </svg>
+        <svg className="h-6 w-auto text-muted-foreground hover:text-foreground transition-colors" fill="currentColor" viewBox="0 0 100 30">
+          <circle cx="15" cy="15" r="8" fill="none" stroke="currentColor" strokeWidth="2" />
+          <circle cx="35" cy="15" r="8" fill="none" stroke="currentColor" strokeWidth="2" />
+          <path d="M60,15 Q75,5 90,15" fill="none" stroke="currentColor" strokeWidth="2" />
+        </svg>
+      </div>
+    </div>
+  )
+}
+
+function FeaturesSection() {
+  const features = [
+    {
+      title: "Real-time Transcription",
+      description: "Instant speech-to-text with 99% accuracy across 30+ languages. Searchable and editable in real-time.",
+      icon: <Captions className="w-5 h-5" />,
+    },
+    {
+      title: "Contextual Intelligence",
+      description: "AI that understands context, not just keywords. It distinguishes between a joke and a commitment.",
+      icon: <Brain className="w-5 h-5" />,
+    },
+    {
+      title: "Workflow Automation",
+      description: "Push action items directly to Notion, Linear, Jira, or Slack without lifting a finger.",
+      icon: <Network className="w-5 h-5" />,
+    },
+  ]
+
+  return (
+    <div className="py-24 border-t border-border" id="features">
+      <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-12">
+        <div className="max-w-xl">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Supercharge your productivity</h2>
+          <p className="text-muted-foreground text-lg">Don't just record meetings. Understand them.</p>
+        </div>
+        <Link className="text-primary font-bold hover:text-foreground transition-colors flex items-center gap-1 group" href="#features-all">
+          View all features
+          <ArrowRight className="group-hover:translate-x-1 transition-transform" size={18} />
+        </Link>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-6">
+        {features.map((feature) => (
+          <div
+            key={feature.title}
+            className="p-6 rounded-2xl bg-card border border-border hover:border-primary/30 transition-colors group"
+          >
+            <div className="w-12 h-12 rounded-lg bg-muted border border-border flex items-center justify-center mb-6 text-foreground group-hover:bg-primary group-hover:text-black transition-colors">
+              {feature.icon}
+            </div>
+            <h3 className="text-xl font-bold mb-2">{feature.title}</h3>
+            <p className="text-muted-foreground text-sm leading-relaxed">{feature.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function AboutSection() {
+  return (
+    <div className="py-24 border-t border-border" id="about">
+      <div className="grid md:grid-cols-2 gap-16 items-center">
+        <div>
+          <h2 className="text-3xl md:text-4xl font-bold mb-6">About MeetAI</h2>
+          <p className="text-muted-foreground text-lg leading-relaxed mb-6">
+            MeetAI was built for teams who spend too much time in meetings and too little time acting on them. We believe every conversation should produce clear outcomes — not just recordings gathering dust.
+          </p>
+          <p className="text-muted-foreground text-lg leading-relaxed mb-8">
+            Our AI attends your calls as a silent participant, capturing every detail so you don&apos;t have to. From live transcripts to automatic task creation, MeetAI turns passive listening into active productivity.
+          </p>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="p-5 rounded-xl bg-card border border-border">
+              <div className="text-3xl font-bold text-primary mb-1">10x</div>
+              <div className="text-sm text-muted-foreground">Faster meeting follow-ups</div>
+            </div>
+            <div className="p-5 rounded-xl bg-card border border-border">
+              <div className="text-3xl font-bold text-primary mb-1">30+</div>
+              <div className="text-sm text-muted-foreground">Languages supported</div>
+            </div>
+            <div className="p-5 rounded-xl bg-card border border-border">
+              <div className="text-3xl font-bold text-primary mb-1">99%</div>
+              <div className="text-sm text-muted-foreground">Transcription accuracy</div>
+            </div>
+            <div className="p-5 rounded-xl bg-card border border-border">
+              <div className="text-3xl font-bold text-primary mb-1">50k+</div>
+              <div className="text-sm text-muted-foreground">Meetings processed</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-6">
+          <div className="p-6 rounded-2xl bg-card border border-border hover:border-primary/30 transition-colors">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <Brain className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold mb-2">Our Mission</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">To make every meeting meaningful by eliminating the friction between conversation and action. We&apos;re building the AI layer that connects what&apos;s said to what gets done.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 rounded-2xl bg-card border border-border hover:border-primary/30 transition-colors">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <Network className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold mb-2">Built for Teams</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">Whether you&apos;re a startup of 5 or an enterprise of 5,000, MeetAI scales with your workflow. Deep integrations with the tools your team already uses.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 rounded-2xl bg-card border border-border hover:border-primary/30 transition-colors">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold mb-2">Privacy First</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">End-to-end encrypted transcripts. Your meeting data stays yours. We never train on your conversations, ever.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </section>
+    </div>
+  )
+}
+
+function Footer() {
+  return (
+    <footer className="py-12 border-t border-border flex flex-col md:flex-row justify-between items-center gap-6 text-muted-foreground text-sm">
+      <div className="flex items-center gap-2">
+        <AudioLines size={20} className="text-muted-foreground" />
+        <span className="font-bold text-foreground">MeetAI</span>
+        <span>© {new Date().getFullYear()}</span>
+      </div>
+      <div className="flex gap-6">
+        <Link className="hover:text-foreground transition-colors" href="#privacy">
+          Privacy
+        </Link>
+        <Link className="hover:text-foreground transition-colors" href="#terms">
+          Terms
+        </Link>
+        <Link className="hover:text-foreground transition-colors" href="#twitter">
+          Twitter
+        </Link>
+        <Link className="hover:text-foreground transition-colors" href="#linkedin">
+          LinkedIn
+        </Link>
+      </div>
+    </footer>
   )
 }

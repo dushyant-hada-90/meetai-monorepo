@@ -44,11 +44,11 @@ export const AgentIdViewHeader = ({ agentId, agentName, onEdit, onRemove }: Prop
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={onEdit}>
-                        <PencilIcon className="size-4 text-black" />
+                        <PencilIcon className="size-4 text-foreground" />
                         Edit
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={onRemove}>
-                        <TrashIcon className="size-4 text-black" />
+                        <TrashIcon className="size-4 text-foreground" />
                         Delete
                     </DropdownMenuItem>
                 </DropdownMenuContent>

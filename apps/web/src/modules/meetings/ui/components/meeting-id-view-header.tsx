@@ -45,15 +45,15 @@ export const MeetingIdViewHeader = ({ meetingId, meetingName, onEdit, onRemove ,
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={onEdit}>
-                        <PencilIcon className="size-4 text-black" />
+                        <PencilIcon className="size-4 text-foreground" />
                         Edit
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={onRemove}>
-                        <TrashIcon className="size-4 text-black" />
+                        <TrashIcon className="size-4 text-foreground" />
                         Delete
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={onShare}>
-                        <Share2Icon className="size-4 text-black" />
+                        <Share2Icon className="size-4 text-foreground" />
                         Share
                     </DropdownMenuItem>
                 </DropdownMenuContent>

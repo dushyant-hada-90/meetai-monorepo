@@ -205,7 +205,7 @@ export const SignInView = ({ redirect }: Props) => {
                             height={92}
                             className="h-[92px] w-[92px]"
                         />
-                        <p className="text-2xl font-semibold text-white">Meet.AI</p>
+                        <p className="text-2xl font-semibold text-foreground">Meet.AI</p>
                     </div>
                 </CardContent>
             </Card>

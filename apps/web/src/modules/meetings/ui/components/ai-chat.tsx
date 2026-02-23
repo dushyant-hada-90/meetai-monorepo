@@ -120,7 +120,7 @@ export function AiChat({ meetingId }: Props) {
   };
 
   return (
-    <div className="bg-white border rounded-lg shadow-sm h-full min-h-0 flex flex-col">
+    <div className="bg-card border rounded-lg shadow-sm h-full min-h-0 flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b">
         <span className="p-2 rounded-full bg-primary/10 text-primary">

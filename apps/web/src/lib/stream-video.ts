@@ -74,8 +74,12 @@ export const generateLivekitToken = async (body: TokenRequest) => {
     console.error("Failed to fetch meeting context:", error);
   }
 
-  // // ---------------------------------------------------------
+  // ---------------------------------------------------------
   // STEP 2: Prime or Update the Room with Metadata
+  // Always call updateRoomMetadata after createRoom to guarantee
+  // metadata is set regardless of whether the room was newly created
+  // or already existed (a non-409 createRoom error still leaves a
+  // room that was previously created without metadata).
   // ---------------------------------------------------------
   try {
     // Attempt to create the room with metadata
@@ -84,6 +88,7 @@ export const generateLivekitToken = async (body: TokenRequest) => {
       emptyTimeout: 10 * 60,
       metadata: roomMetadata,
     });
+    console.log(`[TokenGen] Room ${roomName} created with metadata.`);
   } catch (e: unknown) {
     if (
       e instanceof Error &&
@@ -92,15 +97,19 @@ export const generateLivekitToken = async (body: TokenRequest) => {
         ("code" in e && typeof (e as { code?: unknown }).code === "number" && (e as { code: number }).code === 409)
       )
     ) {
-      console.log(`[TokenGen] Room ${roomName} exists. Updating metadata...`);
-      try {
-        await roomService.updateRoomMetadata(roomName, roomMetadata);
-      } catch (updateErr) {
-        console.error("Failed to update room metadata:", updateErr);
-      }
+      console.log(`[TokenGen] Room ${roomName} already exists.`);
     } else {
-      console.log("Error creating room (non-fatal):", e);
+      console.warn("[TokenGen] createRoom error (will still attempt metadata update):", e);
     }
+  }
+
+  // Always update metadata — covers the case where createRoom failed or
+  // the room was created without metadata by a previous failed call.
+  try {
+    await roomService.updateRoomMetadata(roomName, roomMetadata);
+    console.log(`[TokenGen] Room ${roomName} metadata updated successfully.`);
+  } catch (updateErr) {
+    console.error("[TokenGen] Failed to update room metadata:", updateErr);
   }
 
   // ---------------------------------------------------------
