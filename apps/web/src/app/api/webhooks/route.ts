@@ -37,23 +37,31 @@ export async function POST(req: NextRequest) {
         if (event.event === 'room_started' && event.room?.name) {
             await db
                 .update(meetings)
-                .set({ status: "active" })
+                .set({ status: "active", startedAt: new Date() })
                 .where(eq(meetings.id, event.room.name));
 
             console.log(`Meeting ${event.room.name} status set to active`);
         }
-        // console.log(event.room)
-        // Handle the "Room Finished" event
-        // Inside your app/api/webhooks/livekit/route.ts POST handler
-        if (event.event === 'room_finished') {
+
+        // Handle the "Room Finished" event — trigger AI summarization
+        if (event.event === 'room_finished' && event.room?.name) {
+            let startedAt: Date = new Date();
+            try {
+                // creationTime may be bigint (seconds since epoch) in the proto
+                const ts = event.room.creationTime;
+                if (ts) startedAt = new Date(Number(ts) * 1000);
+            } catch { /* use current time as fallback */ }
+
             await inngest.send({
                 name: "livekit/room_finished",
                 data: {
-                    meetingId: event.room?.name, // Assuming meetingName/Id is passed here
-                    startedAt: new Date(Number(event.room?.creationTimeMs)),
-                    endedAt: new Date() // this is the time when webhook was cereated which marks the end of meeting
+                    meetingId: event.room.name,
+                    startedAt,
+                    endedAt: new Date(),
                 },
             });
+
+            console.log(`Meeting ${event.room.name} sent for processing`);
         }
 
         // 5. Always return a 200 OK to LiveKit so it stops retrying

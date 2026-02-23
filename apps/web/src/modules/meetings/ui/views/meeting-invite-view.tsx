@@ -154,10 +154,10 @@ export function InviteScreen({
           {isAccepting ? (
             <>
               <Spinner className="mr-2 h-4 w-4" />
-              Joining…
+              Accepting…
             </>
           ) : (
-            "Join Meeting"
+            "Accept Invite"
           )}
         </Button>
       </CardContent>

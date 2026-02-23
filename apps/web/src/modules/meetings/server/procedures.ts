@@ -12,25 +12,25 @@ import { generateObject } from "ai";
 import { google } from "@ai-sdk/google";
 export const meetingsRouter = createTRPCRouter({
 
+
     // ---------------------------------------------------------
-    // 1. APPEND TRANSCRIPT
-    // Appends a new line to the meeting transcript.
-    // UPDATE: Now checks meetingParticipants table. 
-    // Any valid participant (Host/Attendee) can append to the transcript.
+    // 1 BULK APPEND TRANSCRIPT
+    // Appends multiple lines at once. Used by the TranscriptHandler
+    // to flush buffered transcript lines before disconnect.
     // ---------------------------------------------------------
-    appendTranscript: protectedProcedure
+    bulkAppendTranscript: protectedProcedure
         .input(z.object({
             meetingId: z.string(),
-            line: z.object({
+            lines: z.array(z.object({
                 role: z.enum(["human", "assistant"]),
-                speaker: z.string(), // Accepts the ID
+                speaker: z.string(),
                 text: z.string(),
                 timestamp: z.number(),
-            })
+            }))
         }))
         .mutation(async ({ input, ctx }) => {
-            // 1. SECURITY: First, verify the user is actually IN the meeting.
-            // We use a simple select before the update to ensure permissions.
+            if (input.lines.length === 0) return { success: true };
+
             const [participant] = await db
                 .select()
                 .from(meetingParticipants)
@@ -40,23 +40,18 @@ export const meetingsRouter = createTRPCRouter({
                 ));
 
             if (!participant) {
-                // If they aren't in the participants table, they can't write to the transcript
                 throw new TRPCError({
                     code: "FORBIDDEN",
                     message: "You must be a participant to update the transcript"
                 });
             }
 
-            // 2. ACTION: Perform the update
             await db
                 .update(meetings)
                 .set({
-                    transcript: sql`COALESCE(${meetings.transcript}, '[]'::jsonb) || ${JSON.stringify([input.line])}::jsonb`,
+                    transcript: sql`COALESCE(${meetings.transcript}, '[]'::jsonb) || ${JSON.stringify(input.lines)}::jsonb`,
                 })
-                .where(
-                    // We only check for Meeting ID now, because we validated the user above.
-                    eq(meetings.id, input.meetingId)
-                );
+                .where(eq(meetings.id, input.meetingId));
 
             return { success: true };
         }),

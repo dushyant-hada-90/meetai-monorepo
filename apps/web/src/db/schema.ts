@@ -142,7 +142,7 @@ export const meetingParticipants = pgTable("meeting_participants", {
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
   role: participantRole("role").notNull().default("attendee"),
-  hasJoined: boolean("has_joined").default(false),
+  hasAccepted: boolean("has_accepted").default(false),
   invitedAt: timestamp("invited_at").defaultNow().notNull(),
   joinedAt: timestamp("joined_at"),
 }, (t) => ({

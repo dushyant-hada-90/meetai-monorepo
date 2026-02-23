@@ -37,20 +37,25 @@ export function AiChat({ meetingId }: Props) {
 
   const isLoading = askAiMutation.isPending;
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      content:
-        "Hello! I've analyzed the meeting transcript. What would you like to know?",
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
 
   const [inputValue, setInputValue] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Seed the assistant's opening message on the client to avoid SSR/CSR time mismatches
+  useEffect(() => {
+    setMessages([
+      {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content:
+          "Hello! I've analyzed the meeting transcript. What would you like to know?",
+        timestamp: new Date(),
+      },
+    ]);
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
