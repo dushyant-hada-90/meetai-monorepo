@@ -1,6 +1,5 @@
 "use client"
-import { BotIcon, StarIcon, VideoIcon } from "lucide-react";
-import Image from "next/image";
+import { AudioLines, BotIcon, StarIcon, VideoIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -48,8 +47,10 @@ export const DashboardSidebar = () => {
     return (
         <Sidebar>
             <SidebarHeader className="text-sidebar-accent-foreground">
-                <Link href="/" className="flex items-center gap-2 px-2 pt-2">
-                    <Image src="/logo.svg" height={36} width={36} alt="Meet.AI" className="h-auto w-auto"/>
+                <Link href="/" className="flex items-center gap-2 px-2 pt-2 group">
+                    <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center text-primary group-hover:scale-105 transition-transform duration-300">
+                        <AudioLines size={22} />
+                    </div>
                     <p className="text-2xl font-semibold">Meet.AI</p>
                 </Link>
             </SidebarHeader>

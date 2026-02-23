@@ -1,7 +1,7 @@
 "use client"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { OctagonAlertIcon } from "lucide-react"
+import { AudioLines, OctagonAlertIcon } from "lucide-react"
 import { useForm } from "react-hook-form"
 import Link from "next/link"
 import { useState } from "react"
@@ -22,7 +22,6 @@ import {
     FormMessage,
 } from "@/components/ui/form"
 import { authClient } from "@/lib/auth-client"
-import Image from "next/image"
 
 interface Props {
   redirect?: string
@@ -237,16 +236,17 @@ export const SignUpView = ({redirect}:Props) => {
                             </div>
                         </form>
                     </Form>
-                    <div className="bg-radial from-sidebar-accent to-sidebar relative hidden md:flex flex-col ga-y-4 items-center justify-center">
-                        <Image
-                            src="/logo.svg"
-                            alt="Image"
-                            width={92}
-                            height={92}
-                            priority
-                            className="h-[92px] w-[92px]"
-                        />
-                        <p className="text-2xl font-semibold text-white">Meet.AI</p>
+                    <div className="relative hidden md:flex flex-col gap-y-6 items-center justify-center bg-gradient-to-br from-primary/20 via-primary/8 to-muted border-l border-border">
+                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.12)_0%,transparent_70%)]" />
+                        <div className="relative flex flex-col items-center gap-y-4">
+                            <div className="w-24 h-24 rounded-2xl bg-primary/15 border border-primary/20 flex items-center justify-center text-primary shadow-lg shadow-primary/10">
+                                <AudioLines size={52} />
+                            </div>
+                            <div className="flex flex-col items-center gap-y-1">
+                                <p className="text-2xl font-bold text-foreground">Meet.AI</p>
+                                <p className="text-sm text-muted-foreground text-center px-6">AI-powered meetings, re-imagined</p>
+                            </div>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
