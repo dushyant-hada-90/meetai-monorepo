@@ -218,8 +218,8 @@ export const meetingsRouter = createTRPCRouter({
                 meetingId: input.meetingId,
                 userId: userId,
                 role: role as ParticipantRole, // Cast to enum type
+                hasAccepted: true,
                 joinedAt: new Date(),
-                hasJoined: true,
             });
 
             return { success: true, role };

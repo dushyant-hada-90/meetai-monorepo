@@ -6,8 +6,6 @@ import {
   Clock,
   Users,
   Calendar,
-  FileText,
-  ArrowRight,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
@@ -16,13 +14,11 @@ import { useState, useEffect } from "react";
 interface CallEndedProps {
   duration?: number;
   participants?: number;
-  meetingId?: string;
 }
 
 export const CallEnded = ({
   duration = 0,
   participants = 0,
-  meetingId,
 }: CallEndedProps) => {
   const [formattedDuration, setFormattedDuration] = useState("");
   const [showContent, setShowContent] = useState(false);
@@ -121,18 +117,6 @@ export const CallEnded = ({
 
         {/* Action buttons */}
         <div className="flex flex-col items-center gap-3 w-full max-w-xs">
-          {meetingId && (
-            <Button
-              asChild
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl h-11 shadow-lg shadow-indigo-500/20"
-            >
-              <Link href={`/meetings/${meetingId}`}>
-                <FileText className="w-4 h-4 mr-2" />
-                View Transcript
-                <ArrowRight className="w-4 h-4 ml-auto" />
-              </Link>
-            </Button>
-          )}
           <Button
             asChild
             variant="outline"

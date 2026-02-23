@@ -560,7 +560,7 @@ export function CallActive({ meetingName, meetingId }: CallActiveProps) {
   const callDurationSec = Math.floor((Date.now() - callStartTime) / 1000);
 
   if (ended || connectionState === ConnectionState.Disconnected) {
-    return <CallEnded duration={callDurationSec} participants={humanCount} meetingId={meetingId} />;
+    return <CallEnded duration={callDurationSec} participants={humanCount} />;
   }
 
   return (
