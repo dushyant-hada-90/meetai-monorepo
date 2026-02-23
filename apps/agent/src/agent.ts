@@ -107,406 +107,429 @@ export default defineAgent({
         console.warn("⚠️ No room or job metadata found, using defaults");
       }
 
-    // ─────────────────────────────────────────────────────
-    // 2. PARTICIPANT TRACKING
-    //    Maps participant identity → display name.
-    //    Used for speaker attribution in transcripts and
-    //    for telling the AI model who is currently speaking.
-    // ─────────────────────────────────────────────────────
-    const participantNames = new Map<string, string>(); // identity → display name
-
-    /** Get display name for a participant identity */
-    function getDisplayName(identity: string): string {
-      return participantNames.get(identity) ?? identity;
-    }
-
-    /** Build a participant list string for the system prompt */
-    function buildParticipantList(): string {
-      if (participantNames.size === 0) return "No participants have joined yet.";
-      const names = Array.from(participantNames.values());
-      return names.join(", ");
-    }
-
-    // Seed with any participants already in the room
-    for (const p of ctx.room.remoteParticipants.values()) {
-      if (p.identity !== localParticipant?.identity) {
-        participantNames.set(p.identity, p.name || p.identity);
-      }
-    }
-
-    // ─────────────────────────────────────────────────────
-    // 3. BUILD SYSTEM PROMPT with meeting context
-    // ─────────────────────────────────────────────────────
-    const systemPrompt = `
-You are "${currentAgent.name}", an AI participant in this meeting.
-Meeting name: "${currentMeeting.name}".
-
-Your Core Instructions:
-${currentAgent.instructions}
-
-Behavioral Guidelines:
-- You behave exactly like another human participant in the meeting.
-- Speak naturally and conversationally—avoid sounding robotic.
-- Be concise and professional. Do not ramble.
-- Wait for the other person to finish speaking before you reply.
-- ALWAYS respond in English. All transcription and responses must be in English.
-- When multiple people are in the meeting, address them by name.
-- Introduce yourself as "${currentAgent.name}" if asked who you are.
-
-Multi-Speaker Awareness:
-- This is a multi-participant meeting. Multiple humans may take turns speaking.
-- You will receive context about who is currently speaking via system updates.
-- When you hear audio, it belongs to the person identified as the current speaker.
-- Address each person by their name when responding to them.
-- Keep track of what each person has said during the conversation.
-- If you're unsure who is speaking, you may ask.
-
-Current participants: ${buildParticipantList()}
-`.trim();
-
-    // ─────────────────────────────────────────────────────
-    // 4. CONFIGURE GEMINI REALTIME MODEL
-    // ─────────────────────────────────────────────────────
-    const realtimeModel = new google.beta.realtime.RealtimeModel({
-      model: "gemini-2.5-flash-native-audio-preview-12-2025",
-      voice: "Puck",
-      temperature: 0.7,
-      language: "en-US", // Fix: prevent wrong-language transcription (Hindi for English)
-      instructions: systemPrompt,
-      // Native audio models only support AUDIO response modality.
-      // TEXT modality causes "invalid argument" error on native audio models.
-      // Omit modalities to use the SDK default: [Modality.AUDIO]
-    });
-
-    // ─────────────────────────────────────────────────────
-    // 5. CREATE AGENT & SESSION
-    //    - The session handles turn detection automatically
-    //      with Gemini realtime (no manual generateReply on speech stop)
-    // ─────────────────────────────────────────────────────
-    const agent = new MeetingAgent(currentAgent.name, systemPrompt);
-
-    const session = new voice.AgentSession({
-      llm: realtimeModel,
-    });
-
-    // Transcript sequence counter for ordered delivery
-    let transcriptIndex = 0;
-
-    // ─────────────────────────────────────────────────────
-    // 6. TRANSCRIPT BROADCASTING via DataChannel
-    //    → Frontend listens on RoomEvent.DataReceived
-    // ─────────────────────────────────────────────────────
-    session.on(
-      voice.AgentSessionEventTypes.ConversationItemAdded,
-      async (event) => {
-        const text = event.item.textContent;
-        if (!text || text.trim().length === 0) return;
-
-        let assignedRole: "human" | "assistant" = "assistant";
-        // For DB storage: send IDs, not display names.
-        // The getTranscript procedure resolves IDs to names.
-        let speakerId: string = currentMeeting.agentId || currentAgent.id || currentAgent.name;
-
-        if (event.item.role === "user") {
-          assignedRole = "human";
-
-          // Use the last active speaker's IDENTITY (which is the user ID)
-          // LiveKit participant identity = ctx.auth.user.id (set during token generation)
-          if (lastActiveSpeakerIdentity) {
-            speakerId = lastActiveSpeakerIdentity;
-          } else {
-            // Fallback: use first remote participant's identity (user ID)
-            const remotes = Array.from(ctx.room.remoteParticipants.values());
-            const firstRemote = remotes[0];
-            speakerId = firstRemote ? firstRemote.identity : "unknownUser";
-          }
-        }
-
-        const payload = {
-          type: "transcript_update",
-          role: assignedRole,
-          speaker: speakerId,
-          text: text,
-          timestamp: Date.now(),
-          index: transcriptIndex++,
-        };
-
+      // ─────────────────────────────────────────────────────
+      // 1b. LISTEN FOR LATE-ARRIVING METADATA
+      //     LiveKit may deliver room metadata after connect().
+      //     Re-parse it so the agent picks up the correct name
+      //     and instructions even if it arrived after entry().
+      // ─────────────────────────────────────────────────────
+      ctx.room.on(RoomEvent.RoomMetadataChanged, (newMetadata: string) => {
+        if (!newMetadata) return;
         try {
-          const displayName = assignedRole === "human"
-            ? getDisplayName(speakerId)
-            : currentAgent.name;
-          const data = new TextEncoder().encode(JSON.stringify(payload));
-          await localParticipant.publishData(data, { reliable: true });
-          console.log(
-            `📝 Transcript #${payload.index} [${assignedRole}/${displayName}]: ${text.substring(0, 60)}...`
-          );
-        } catch (err) {
-          console.error("❌ Failed to publish transcript data:", err);
+          const data: RoomMetadata = JSON.parse(newMetadata);
+          if (data.meetingData) {
+            currentMeeting = data.meetingData;
+            console.log(`📋 Late metadata — meeting name updated to: "${currentMeeting.name}"`);
+          }
+          if (data.agentData) {
+            currentAgent = data.agentData;
+            console.log(`📋 Late metadata — agent name updated to: "${currentAgent.name}"`);
+          }
+        } catch (e) {
+          console.error("⚠️ Failed to parse late room metadata:", e);
         }
-      }
-    );
-
-    // ─────────────────────────────────────────────────────
-    // 7. DEBUG: LOG STATE CHANGES
-    // ─────────────────────────────────────────────────────
-    session.on(
-      voice.AgentSessionEventTypes.AgentStateChanged,
-      (event) => {
-        console.log(`🤖 Agent state: ${event.oldState} → ${event.newState}`);
-      }
-    );
-
-    session.on(
-      voice.AgentSessionEventTypes.UserStateChanged,
-      (event) => {
-        console.log(`👤 User state: ${event.oldState} → ${event.newState}`);
-      }
-    );
-
-    session.on(
-      voice.AgentSessionEventTypes.UserInputTranscribed,
-      (event) => {
-        if (event.isFinal) {
-          console.log(`🎤 User said: "${event.transcript}"`);
-        }
-      }
-    );
-
-    session.on(
-      voice.AgentSessionEventTypes.Error,
-      (event) => {
-        console.error("❌ Session error:", event.error);
-      }
-    );
-
-    session.on(
-      voice.AgentSessionEventTypes.Close,
-      (event) => {
-        console.log("🔒 Session closed. Reason:", event.reason);
-      }
-    );
-
-    // ─────────────────────────────────────────────────────
-    // 8. MULTI-PARTICIPANT AUDIO MIXER
-    //    The SDK pins to ONE participant by default.
-    //    We disable RoomIO audio and use AudioMixer to combine
-    //    all participants' mic tracks into a single mixed stream.
-    // ─────────────────────────────────────────────────────
-    const SAMPLE_RATE = 24000;
-    const NUM_CHANNELS = 1;
-
-    const mixer = new AudioMixer(SAMPLE_RATE, NUM_CHANNELS, {
-      streamTimeoutMs: 2000,
-    });
-    const trackStreams = new Map<string, AudioStream>();
-
-    // Track the last active human speaker for transcript attribution
-    let lastActiveSpeakerIdentity: string | null = null;
-
-    /**
-     * Check if a participant is a human (not another agent)
-     */
-    function isHumanParticipant(participant: { identity: string }): boolean {
-      return !participant.identity.startsWith("agent-");
-    }
-
-    /**
-     * Subscribe a participant's microphone track to the mixer
-     */
-    function addTrackToMixer(
-      track: Track,
-      publication: TrackPublication,
-      participant: RemoteParticipant
-    ) {
-      if (publication.source !== TrackSource.SOURCE_MICROPHONE) return;
-      if (participant.identity === localParticipant?.identity) return;
-      if (!isHumanParticipant(participant)) {
-        console.log(`⏭️ Skipping agent track from: ${participant.identity}`);
-        return;
-      }
-
-      const sid = publication.sid;
-      if (!sid || trackStreams.has(sid)) return;
-
-      const stream = new AudioStream(track, {
-        sampleRate: SAMPLE_RATE,
-        numChannels: NUM_CHANNELS,
       });
-      trackStreams.set(sid, stream);
-      mixer.addStream(stream);
-      console.log(`🎵 Mixed in HUMAN audio from: ${participant.identity} (${sid})`);
-    }
 
-    // Listen for new tracks being subscribed
-    ctx.room.on(
-      RoomEvent.TrackSubscribed,
-      (track: Track, publication: TrackPublication, participant: RemoteParticipant) => {
-        addTrackToMixer(track, publication, participant);
-        console.log(`🎧 Subscribed to track from: ${participant.identity}`);
+      // ─────────────────────────────────────────────────────
+      // 2. PARTICIPANT TRACKING
+      //    Maps participant identity → display name.
+      //    Used for speaker attribution in transcripts and
+      //    for telling the AI model who is currently speaking.
+      // ─────────────────────────────────────────────────────
+      const participantNames = new Map<string, string>(); // identity → display name
+
+      /** Get display name for a participant identity */
+      function getDisplayName(identity: string): string {
+        return participantNames.get(identity) ?? identity;
       }
-    );
 
-    // Clean up when tracks are unsubscribed
-    ctx.room.on(
-      RoomEvent.TrackUnsubscribed,
-      (_track: Track, publication: TrackPublication, _participant: RemoteParticipant) => {
-        const sid = publication.sid;
-        const stream = sid ? trackStreams.get(sid) : undefined;
-        if (stream && sid) {
-          mixer.removeStream(stream);
-          trackStreams.delete(sid);
-          console.log(`🔇 Removed audio from mixer: ${sid}`);
+      /** Build a participant list string for the system prompt */
+      function buildParticipantList(): string {
+        if (participantNames.size === 0) return "No participants have joined yet.";
+        const names = Array.from(participantNames.values());
+        return names.join(", ");
+      }
+
+      // Seed with any participants already in the room
+      for (const p of ctx.room.remoteParticipants.values()) {
+        if (p.identity !== localParticipant?.identity) {
+          participantNames.set(p.identity, p.name || p.identity);
         }
       }
-    );
 
-    // Subscribe to tracks that are already published (participant joined before agent)
-    for (const participant of ctx.room.remoteParticipants.values()) {
-      for (const publication of participant.trackPublications.values()) {
-        if (
-          publication.track &&
-          publication.source === TrackSource.SOURCE_MICROPHONE
-        ) {
-          addTrackToMixer(
-            publication.track,
-            publication,
-            participant as RemoteParticipant
+      // ─────────────────────────────────────────────────────
+      // 3. BUILD SYSTEM PROMPT with meeting context
+      // ─────────────────────────────────────────────────────
+      const systemPrompt = `
+        You are "${currentAgent.name}", an AI participant in this meeting.
+        Meeting name: "${currentMeeting.name}".
+
+        Your Core Instructions:
+        ${currentAgent.instructions}
+
+        Behavioral Guidelines:
+        - You behave exactly like another human participant in the meeting.
+        - Speak naturally and conversationally—avoid sounding robotic.
+        - Be concise and professional. Do not ramble.
+        - Wait for the other person to finish speaking before you reply.
+        - ALWAYS respond in English. All transcription and responses must be in English.
+        - When multiple people are in the meeting, address them by name.
+        - Introduce yourself as "${currentAgent.name}" if asked who you are.
+        - If a participant states a factually incorrect claim, briefly and politely correct it with one concise sentence and, if helpful, a short rationale.
+        Multi-Speaker Awareness:
+        - This is a multi-participant meeting. Multiple humans may take turns speaking.
+        - You will receive context about who is currently speaking via system updates.
+        - When you hear audio, it belongs to the person identified as the current speaker.
+        - Address each person by their name when responding to them.
+        - Keep track of what each person has said during the conversation.
+        - If you're unsure who is speaking, you may ask.
+
+        Current participants: ${buildParticipantList()}
+        `.trim();
+
+      // ─────────────────────────────────────────────────────
+      // 4. CONFIGURE GEMINI REALTIME MODEL
+      // ─────────────────────────────────────────────────────
+      const realtimeModel = new google.beta.realtime.RealtimeModel({
+        model: "gemini-2.5-flash-native-audio-preview-12-2025",
+        voice: "Puck",
+        temperature: 0.7,
+        language: "en-IN", // Fix: prevent wrong-language transcription (Hindi for English)
+        instructions: systemPrompt,
+        // Native audio models only support AUDIO response modality.
+        // TEXT modality causes "invalid argument" error on native audio models.
+        // Omit modalities to use the SDK default: [Modality.AUDIO]
+      });
+
+      // ─────────────────────────────────────────────────────
+      // 5. CREATE AGENT & SESSION
+      //    - The session handles turn detection automatically
+      //      with Gemini realtime (no manual generateReply on speech stop)
+      // ─────────────────────────────────────────────────────
+      const agent = new MeetingAgent(currentAgent.name, systemPrompt);
+
+      const session = new voice.AgentSession({
+        llm: realtimeModel,
+      });
+
+      // Transcript sequence counter for ordered delivery
+      let transcriptIndex = 0;
+
+      // ─────────────────────────────────────────────────────
+      // 6. TRANSCRIPT BROADCASTING via DataChannel
+      //    → Frontend listens on RoomEvent.DataReceived
+      // ─────────────────────────────────────────────────────
+      session.on(
+        voice.AgentSessionEventTypes.ConversationItemAdded,
+        async (event) => {
+          const text = event.item.textContent;
+          if (!text || text.trim().length === 0) return;
+
+          let assignedRole: "human" | "assistant" = "assistant";
+          // For DB storage: send IDs, not display names.
+          // The getTranscript procedure resolves IDs to names.
+          let speakerId: string = currentMeeting.agentId || currentAgent.id || currentAgent.name;
+
+          if (event.item.role === "user") {
+            assignedRole = "human";
+
+            // Use the last active speaker's IDENTITY (which is the user ID)
+            // LiveKit participant identity = ctx.auth.user.id (set during token generation)
+            if (lastActiveSpeakerIdentity) {
+              speakerId = lastActiveSpeakerIdentity;
+            } else {
+              // Fallback: use first remote participant's identity (user ID)
+              const remotes = Array.from(ctx.room.remoteParticipants.values());
+              const firstRemote = remotes[0];
+              speakerId = firstRemote ? firstRemote.identity : "unknownUser";
+            }
+          }
+
+          const payload = {
+            type: "transcript_update",
+            role: assignedRole,
+            speaker: speakerId,
+            text: text,
+            timestamp: Date.now(),
+            index: transcriptIndex++,
+          };
+
+          try {
+            const displayName = assignedRole === "human"
+              ? getDisplayName(speakerId)
+              : currentAgent.name;
+            const data = new TextEncoder().encode(JSON.stringify(payload));
+            await localParticipant.publishData(data, { reliable: true });
+            console.log(
+              `📝 Transcript #${payload.index} [${assignedRole}/${displayName}]: ${text.substring(0, 60)}...`
+            );
+          } catch (err) {
+            console.error("❌ Failed to publish transcript data:", err);
+          }
+        }
+      );
+
+      // ─────────────────────────────────────────────────────
+      // 7. DEBUG: LOG STATE CHANGES
+      // ─────────────────────────────────────────────────────
+      session.on(
+        voice.AgentSessionEventTypes.AgentStateChanged,
+        (event) => {
+          console.log(`🤖 Agent state: ${event.oldState} → ${event.newState}`);
+        }
+      );
+
+      session.on(
+        voice.AgentSessionEventTypes.UserStateChanged,
+        (event) => {
+          console.log(`👤 User state: ${event.oldState} → ${event.newState}`);
+        }
+      );
+
+      session.on(
+        voice.AgentSessionEventTypes.UserInputTranscribed,
+        (event) => {
+          if (event.isFinal) {
+            console.log(`🎤 User said: "${event.transcript}"`);
+          }
+        }
+      );
+
+      session.on(
+        voice.AgentSessionEventTypes.Error,
+        (event) => {
+          console.error("❌ Session error:", event.error);
+        }
+      );
+
+      session.on(
+        voice.AgentSessionEventTypes.Close,
+        (event) => {
+          console.log("🔒 Session closed. Reason:", event.reason);
+        }
+      );
+
+      // ─────────────────────────────────────────────────────
+      // 8. MULTI-PARTICIPANT AUDIO MIXER
+      //    The SDK pins to ONE participant by default.
+      //    We disable RoomIO audio and use AudioMixer to combine
+      //    all participants' mic tracks into a single mixed stream.
+      // ─────────────────────────────────────────────────────
+      const SAMPLE_RATE = 24000;
+      const NUM_CHANNELS = 1;
+
+      const mixer = new AudioMixer(SAMPLE_RATE, NUM_CHANNELS, {
+        streamTimeoutMs: 2000,
+      });
+      const trackStreams = new Map<string, AudioStream>();
+
+      // Track the last active human speaker for transcript attribution
+      let lastActiveSpeakerIdentity: string | null = null;
+
+      /**
+       * Check if a participant is a human (not another agent)
+       */
+      function isHumanParticipant(participant: { identity: string }): boolean {
+        return !participant.identity.startsWith("agent-");
+      }
+
+      /**
+       * Subscribe a participant's microphone track to the mixer
+       */
+      function addTrackToMixer(
+        track: Track,
+        publication: TrackPublication,
+        participant: RemoteParticipant
+      ) {
+        if (publication.source !== TrackSource.SOURCE_MICROPHONE) return;
+        if (participant.identity === localParticipant?.identity) return;
+        if (!isHumanParticipant(participant)) {
+          console.log(`⏭️ Skipping agent track from: ${participant.identity}`);
+          return;
+        }
+
+        const sid = publication.sid;
+        if (!sid || trackStreams.has(sid)) return;
+
+        const stream = new AudioStream(track, {
+          sampleRate: SAMPLE_RATE,
+          numChannels: NUM_CHANNELS,
+        });
+        trackStreams.set(sid, stream);
+        mixer.addStream(stream);
+        console.log(`🎵 Mixed in HUMAN audio from: ${participant.identity} (${sid})`);
+      }
+
+      // Listen for new tracks being subscribed
+      ctx.room.on(
+        RoomEvent.TrackSubscribed,
+        (track: Track, publication: TrackPublication, participant: RemoteParticipant) => {
+          addTrackToMixer(track, publication, participant);
+          console.log(`🎧 Subscribed to track from: ${participant.identity}`);
+        }
+      );
+
+      // Clean up when tracks are unsubscribed
+      ctx.room.on(
+        RoomEvent.TrackUnsubscribed,
+        (_track: Track, publication: TrackPublication, _participant: RemoteParticipant) => {
+          const sid = publication.sid;
+          const stream = sid ? trackStreams.get(sid) : undefined;
+          if (stream && sid) {
+            mixer.removeStream(stream);
+            trackStreams.delete(sid);
+            console.log(`🔇 Removed audio from mixer: ${sid}`);
+          }
+        }
+      );
+
+      // Subscribe to tracks that are already published (participant joined before agent)
+      for (const participant of ctx.room.remoteParticipants.values()) {
+        for (const publication of participant.trackPublications.values()) {
+          if (
+            publication.track &&
+            publication.source === TrackSource.SOURCE_MICROPHONE
+          ) {
+            addTrackToMixer(
+              publication.track,
+              publication,
+              participant as RemoteParticipant
+            );
+          }
+        }
+      }
+
+      // ─────────────────────────────────────────────────────
+      // 9. ROOM EVENTS — participant & speaker tracking
+      //    IMPORTANT: Do NOT use updateInstructions() here!
+      //    It causes the Gemini realtime session to fully restart,
+      //    which destroys conversation history and disrupts audio.
+      //    Instead, we use generateReply() to naturally inject
+      //    context about new participants into the conversation.
+      // ─────────────────────────────────────────────────────
+
+      /** Lazily resolved session — set after session.start() */
+      let sessionReady = false;
+
+      ctx.room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+        participantNames.set(participant.identity, participant.name || participant.identity);
+        const name = getDisplayName(participant.identity);
+        console.log(`👋 Participant joined: ${name} (${participant.identity})`);
+        console.log(`👥 Participants (${participantNames.size}): ${buildParticipantList()}`);
+
+        // Use generateReply to naturally acknowledge the new participant.
+        // This does NOT restart the Gemini session — it just prompts a response
+        // that injects the participant context into the conversation history.
+        if (sessionReady) {
+          session.generateReply({
+            instructions: `A new person just joined the meeting: "${name}". There are now ${participantNames.size} human participant(s): ${buildParticipantList()}. Briefly welcome ${name} to the meeting. Keep it to one short sentence.`,
+          });
+        }
+      });
+
+      ctx.room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+        const name = getDisplayName(participant.identity);
+        participantNames.delete(participant.identity);
+        console.log(`👋 Participant left: ${name}`);
+        console.log(`👥 Participants (${participantNames.size}): ${buildParticipantList()}`);
+
+        // Acknowledge departure without restarting the session.
+        if (sessionReady) {
+          session.generateReply({
+            instructions: `"${name}" has left the meeting. There are now ${participantNames.size} human participant(s) remaining: ${buildParticipantList()}. Briefly acknowledge their departure in one sentence. Do not dwell on it.`,
+          });
+        }
+      });
+
+      /**
+       * Track the active speaker for transcript attribution ONLY.
+       * No longer calls updateInstructions() — that caused full session restarts.
+       */
+      let previousSpeakerIdentity: string | null = null;
+
+      ctx.room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+        const humans = speakers.filter(
+          (p) => p.identity !== localParticipant.identity
+        );
+        if (humans.length > 0) {
+          const newSpeaker = humans[0];
+          lastActiveSpeakerIdentity = newSpeaker.identity;
+
+          if (newSpeaker.identity !== previousSpeakerIdentity) {
+            previousSpeakerIdentity = newSpeaker.identity;
+            console.log(`🎯 Speaker changed → ${getDisplayName(newSpeaker.identity)}`);
+          }
+
+          console.log(
+            "🗣️ Active speakers:",
+            humans.map((h) => `${getDisplayName(h.identity)}`).join(", ")
           );
         }
-      }
-    }
+      });
 
-    // ─────────────────────────────────────────────────────
-    // 9. ROOM EVENTS — participant & speaker tracking
-    //    IMPORTANT: Do NOT use updateInstructions() here!
-    //    It causes the Gemini realtime session to fully restart,
-    //    which destroys conversation history and disrupts audio.
-    //    Instead, we use generateReply() to naturally inject
-    //    context about new participants into the conversation.
-    // ─────────────────────────────────────────────────────
+      // ─────────────────────────────────────────────────────
+      // 10. START SESSION
+      //    Disable RoomIO's automatic audio input so the SDK
+      //    does NOT pin to a single participant. We then attach
+      //    our mixed multi-participant stream manually.
+      // ─────────────────────────────────────────────────────
+      await session.start({
+        agent,
+        room: ctx.room,
+        inputOptions: {
+          audioEnabled: false,  // ← prevent SDK from creating single-participant audio
+        },
+        outputOptions: {
+          transcriptionEnabled: true,
+          syncTranscription: false,
+        },
+      });
 
-    /** Lazily resolved session — set after session.start() */
-    let sessionReady = false;
-
-    ctx.room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
-      participantNames.set(participant.identity, participant.name || participant.identity);
-      const name = getDisplayName(participant.identity);
-      console.log(`👋 Participant joined: ${name} (${participant.identity})`);
-      console.log(`👥 Participants (${participantNames.size}): ${buildParticipantList()}`);
-
-      // Use generateReply to naturally acknowledge the new participant.
-      // This does NOT restart the Gemini session — it just prompts a response
-      // that injects the participant context into the conversation history.
-      if (sessionReady) {
-        session.generateReply({
-          instructions: `A new person just joined the meeting: "${name}". There are now ${participantNames.size} human participant(s): ${buildParticipantList()}. Briefly welcome ${name} to the meeting. Keep it to one short sentence.`,
-        });
-      }
-    });
-
-    ctx.room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
-      const name = getDisplayName(participant.identity);
-      participantNames.delete(participant.identity);
-      console.log(`👋 Participant left: ${name}`);
-      console.log(`👥 Participants (${participantNames.size}): ${buildParticipantList()}`);
-
-      // Acknowledge departure without restarting the session.
-      if (sessionReady) {
-        session.generateReply({
-          instructions: `"${name}" has left the meeting. There are now ${participantNames.size} human participant(s) remaining: ${buildParticipantList()}. Briefly acknowledge their departure in one sentence. Do not dwell on it.`,
-        });
-      }
-    });
-
-    /**
-     * Track the active speaker for transcript attribution ONLY.
-     * No longer calls updateInstructions() — that caused full session restarts.
-     */
-    let previousSpeakerIdentity: string | null = null;
-
-    ctx.room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
-      const humans = speakers.filter(
-        (p) => p.identity !== localParticipant.identity
-      );
-      if (humans.length > 0) {
-        const newSpeaker = humans[0];
-        lastActiveSpeakerIdentity = newSpeaker.identity;
-
-        if (newSpeaker.identity !== previousSpeakerIdentity) {
-          previousSpeakerIdentity = newSpeaker.identity;
-          console.log(`🎯 Speaker changed → ${getDisplayName(newSpeaker.identity)}`);
-        }
-
-        console.log(
-          "🗣️ Active speakers:",
-          humans.map((h) => `${getDisplayName(h.identity)}`).join(", ")
-        );
-      }
-    });
-
-    // ─────────────────────────────────────────────────────
-    // 10. START SESSION
-    //    Disable RoomIO's automatic audio input so the SDK
-    //    does NOT pin to a single participant. We then attach
-    //    our mixed multi-participant stream manually.
-    // ─────────────────────────────────────────────────────
-    await session.start({
-      agent,
-      room: ctx.room,
-      inputOptions: {
-        audioEnabled: false,  // ← prevent SDK from creating single-participant audio
-      },
-      outputOptions: {
-        transcriptionEnabled: true,
-        syncTranscription: false,
-      },
-    });
-
-    // Convert the AudioMixer async iterator → ReadableStream<AudioFrame>
-    const mixerIterator = mixer[Symbol.asyncIterator]();
-    const mixedAudioReadable = new ReadableStream<AudioFrame>({
-      async pull(controller) {
-        try {
-          const { done, value } = await mixerIterator.next();
-          if (done) {
+      // Convert the AudioMixer async iterator → ReadableStream<AudioFrame>
+      const mixerIterator = mixer[Symbol.asyncIterator]();
+      const mixedAudioReadable = new ReadableStream<AudioFrame>({
+        async pull(controller) {
+          try {
+            const { done, value } = await mixerIterator.next();
+            if (done) {
+              controller.close();
+            } else {
+              controller.enqueue(value);
+            }
+          } catch (err) {
+            console.error("❌ Mixer stream error:", err);
             controller.close();
-          } else {
-            controller.enqueue(value);
           }
-        } catch (err) {
-          console.error("❌ Mixer stream error:", err);
-          controller.close();
-        }
-      },
-    });
+        },
+      });
 
-    // Attach mixed audio to the activity.
-    // Since audioEnabled:false, no prior audio source was set,
-    // so attachAudioInput will cleanly set the source on the first call.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const activity = (session as any).activity;
-    if (activity) {
-      activity.attachAudioInput(mixedAudioReadable);
-      // Mark session as ready so room event handlers can use generateReply
-      sessionReady = true;
-      console.log("✅ Mixed multi-participant audio attached to session");
-    } else {
-      console.error("❌ No activity found — audio injection failed");
-    }
+      // Attach mixed audio to the activity.
+      // Since audioEnabled:false, no prior audio source was set,
+      // so attachAudioInput will cleanly set the source on the first call.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const activity = (session as any).activity;
+      if (activity) {
+        activity.attachAudioInput(mixedAudioReadable);
+        // Mark session as ready so room event handlers can use generateReply
+        sessionReady = true;
+        console.log("✅ Mixed multi-participant audio attached to session");
+      } else {
+        console.error("❌ No activity found — audio injection failed");
+      }
 
-    console.log(
-      `✅ Voice session started — mixing audio from ${trackStreams.size} participant(s)`
-    );
+      console.log(
+        `✅ Voice session started — mixing audio from ${trackStreams.size} participant(s)`
+      );
 
-    // ─────────────────────────────────────────────────────
-    // 11. INITIAL GREETING
-    // ─────────────────────────────────────────────────────
-    const greetHandle = session.generateReply({
-      instructions: `Greet the participants as "${currentAgent.name}". Mention that you're ready for the "${currentMeeting.name}" meeting. Keep it brief and natural—like a real person joining a call.`,
-    });
+      // ─────────────────────────────────────────────────────
+      // 11. INITIAL GREETING
+      // ─────────────────────────────────────────────────────
+      const greetHandle = session.generateReply({
+        instructions: `Greet the participants as "${currentAgent.name}". Mention that you're ready for the "${currentMeeting.name}" meeting. Keep it brief and natural—like a real person joining a call.`,
+      });
 
-    await greetHandle.waitForPlayout();
-    console.log("✅ Greeting delivered");
+      await greetHandle.waitForPlayout();
+      console.log("✅ Greeting delivered");
 
     } catch (err) {
       console.error("💥 FATAL ERROR in agent entry:", err);
