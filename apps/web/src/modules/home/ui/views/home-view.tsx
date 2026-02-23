@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
   ArrowRight,
@@ -219,7 +220,7 @@ type VideoTileProps = {
 function VideoTile({ name, src, muted }: VideoTileProps) {
   return (
     <div className="bg-muted rounded-xl overflow-hidden relative group">
-      <img className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" src={src} alt={name} />
+      <Image className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" src={src} alt={name} width={400} height={300} unoptimized />
       <div className="absolute bottom-3 left-3 px-2 py-1 bg-black/60 backdrop-blur rounded text-xs font-medium text-white">{name}</div>
       {muted ? (
         <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
@@ -230,6 +231,7 @@ function VideoTile({ name, src, muted }: VideoTileProps) {
   )
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function TrustedLogos() {
   return (
     <div className="pt-10 mt-4 border-t border-border flex flex-col gap-6">
@@ -282,7 +284,7 @@ function FeaturesSection() {
       <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-12">
         <div className="max-w-xl">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Supercharge your productivity</h2>
-          <p className="text-muted-foreground text-lg">Don't just record meetings. Understand them.</p>
+          <p className="text-muted-foreground text-lg">Don&apos;t just record meetings. Understand them.</p>
         </div>
         <Link className="text-primary font-bold hover:text-foreground transition-colors flex items-center gap-1 group" href="#features-all">
           View all features

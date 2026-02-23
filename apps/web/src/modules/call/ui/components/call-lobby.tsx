@@ -25,12 +25,13 @@ export const CallLobby = ({ onJoin }: Props) => {
   const [showSettings, setShowSettings] = useState(false)
 
   // Initialization
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     initDevices()
     return () => {
       cleanupStream()
     }
-  }, [])
+  }, []) // intentionally run once on mount
 
   // Audio Level Visualizer
   useEffect(() => {

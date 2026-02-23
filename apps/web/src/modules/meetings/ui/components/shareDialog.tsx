@@ -67,7 +67,7 @@ export function ShareDialog({ open, onOpenChange, meetingId }: Props) {
   };
 
   const handleShareViaOS = () => {
-    url && navigator.share?.({ url });
+    if (url) void navigator.share?.({ url });
   };
 
   return (
