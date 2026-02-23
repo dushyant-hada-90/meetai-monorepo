@@ -108,7 +108,34 @@ export default defineAgent({
       }
 
     // ─────────────────────────────────────────────────────
-    // 2. BUILD SYSTEM PROMPT with meeting context
+    // 2. PARTICIPANT TRACKING
+    //    Maps participant identity → display name.
+    //    Used for speaker attribution in transcripts and
+    //    for telling the AI model who is currently speaking.
+    // ─────────────────────────────────────────────────────
+    const participantNames = new Map<string, string>(); // identity → display name
+
+    /** Get display name for a participant identity */
+    function getDisplayName(identity: string): string {
+      return participantNames.get(identity) ?? identity;
+    }
+
+    /** Build a participant list string for the system prompt */
+    function buildParticipantList(): string {
+      if (participantNames.size === 0) return "No participants have joined yet.";
+      const names = Array.from(participantNames.values());
+      return names.join(", ");
+    }
+
+    // Seed with any participants already in the room
+    for (const p of ctx.room.remoteParticipants.values()) {
+      if (p.identity !== localParticipant?.identity) {
+        participantNames.set(p.identity, p.name || p.identity);
+      }
+    }
+
+    // ─────────────────────────────────────────────────────
+    // 3. BUILD SYSTEM PROMPT with meeting context
     // ─────────────────────────────────────────────────────
     const systemPrompt = `
 You are "${currentAgent.name}", an AI participant in this meeting.
@@ -123,12 +150,22 @@ Behavioral Guidelines:
 - Be concise and professional. Do not ramble.
 - Wait for the other person to finish speaking before you reply.
 - Default language is English unless the user speaks another language.
-- When multiple people are in the meeting, address them naturally.
+- When multiple people are in the meeting, address them by name.
 - Introduce yourself as "${currentAgent.name}" if asked who you are.
+
+Multi-Speaker Awareness:
+- This is a multi-participant meeting. Multiple humans may take turns speaking.
+- You will receive context about who is currently speaking via system updates.
+- When you hear audio, it belongs to the person identified as the current speaker.
+- Address each person by their name when responding to them.
+- Keep track of what each person has said during the conversation.
+- If you're unsure who is speaking, you may ask.
+
+Current participants: ${buildParticipantList()}
 `.trim();
 
     // ─────────────────────────────────────────────────────
-    // 3. CONFIGURE GEMINI REALTIME MODEL
+    // 4. CONFIGURE GEMINI REALTIME MODEL
     // ─────────────────────────────────────────────────────
     const realtimeModel = new google.beta.realtime.RealtimeModel({
       model: "gemini-2.5-flash-native-audio-preview-12-2025",
@@ -141,7 +178,7 @@ Behavioral Guidelines:
     });
 
     // ─────────────────────────────────────────────────────
-    // 4. CREATE AGENT & SESSION
+    // 5. CREATE AGENT & SESSION
     //    - The session handles turn detection automatically
     //      with Gemini realtime (no manual generateReply on speech stop)
     // ─────────────────────────────────────────────────────
@@ -155,7 +192,7 @@ Behavioral Guidelines:
     let transcriptIndex = 0;
 
     // ─────────────────────────────────────────────────────
-    // 5. TRANSCRIPT BROADCASTING via DataChannel
+    // 6. TRANSCRIPT BROADCASTING via DataChannel
     //    → Frontend listens on RoomEvent.DataReceived
     // ─────────────────────────────────────────────────────
     session.on(
@@ -170,13 +207,14 @@ Behavioral Guidelines:
         if (event.item.role === "user") {
           assignedRole = "human";
 
-          // Use the last active speaker for attribution (from ActiveSpeakersChanged)
+          // Use the last active speaker's DISPLAY NAME for attribution
           if (lastActiveSpeakerIdentity) {
-            speakerName = lastActiveSpeakerIdentity;
+            speakerName = getDisplayName(lastActiveSpeakerIdentity);
           } else {
-            // Fallback: use first remote participant
+            // Fallback: use first remote participant's display name
             const remotes = Array.from(ctx.room.remoteParticipants.values());
-            speakerName = remotes[0]?.identity ?? "unknown_user";
+            const firstRemote = remotes[0];
+            speakerName = firstRemote ? getDisplayName(firstRemote.identity) : "unknown_user";
           }
         }
 
@@ -202,7 +240,7 @@ Behavioral Guidelines:
     );
 
     // ─────────────────────────────────────────────────────
-    // 6. DEBUG: LOG STATE CHANGES
+    // 7. DEBUG: LOG STATE CHANGES
     // ─────────────────────────────────────────────────────
     session.on(
       voice.AgentSessionEventTypes.AgentStateChanged,
@@ -242,7 +280,7 @@ Behavioral Guidelines:
     );
 
     // ─────────────────────────────────────────────────────
-    // 7. MULTI-PARTICIPANT AUDIO MIXER
+    // 8. MULTI-PARTICIPANT AUDIO MIXER
     //    The SDK pins to ONE participant by default.
     //    We disable RoomIO audio and use AudioMixer to combine
     //    all participants' mic tracks into a single mixed stream.
@@ -332,32 +370,98 @@ Behavioral Guidelines:
     }
 
     // ─────────────────────────────────────────────────────
-    // 8. ROOM EVENTS — participant & speaker tracking
+    // 9. ROOM EVENTS — participant & speaker tracking
+    //    When participants join/leave, update the name map
+    //    AND push updated instructions to Gemini so it
+    //    always knows who is in the meeting.
+    //    When the active speaker changes, also update
+    //    instructions so Gemini knows who is talking.
     // ─────────────────────────────────────────────────────
+
+    /** Lazily resolved activity — set after session.start() */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let sessionActivity: any = null;
+
+    /** Push updated instructions to the Gemini realtime session */
+    function updateGeminiContext(currentSpeaker?: string) {
+      if (!sessionActivity) return;
+      const realtimeSession =
+        sessionActivity.realtimeSession ??
+        sessionActivity.realtimeLLMSession;
+      if (!realtimeSession || typeof realtimeSession.updateInstructions !== "function") return;
+
+      const participantCount = participantNames.size;
+      const speakerLine = currentSpeaker
+        ? `The person currently speaking is: "${currentSpeaker}". Address them by this name when replying.`
+        : "No one is currently speaking.";
+
+      const updatedInstructions = [
+        systemPrompt,
+        "",
+        `[LIVE CONTEXT]`,
+        `Number of human participants in this meeting: ${participantCount}`,
+        `Participant names: ${buildParticipantList()}`,
+        speakerLine,
+      ].join("\n");
+
+      realtimeSession.updateInstructions(updatedInstructions).catch((err: unknown) => {
+        console.error("⚠️ Failed to update Gemini instructions:", err);
+      });
+    }
+
     ctx.room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
-      console.log(`👋 Participant joined: ${participant.identity} (${participant.name})`);
+      participantNames.set(participant.identity, participant.name || participant.identity);
+      console.log(`👋 Participant joined: ${getDisplayName(participant.identity)} (${participant.identity})`);
+      console.log(`👥 Participants (${participantNames.size}): ${buildParticipantList()}`);
+      // Tell Gemini about the new participant
+      updateGeminiContext(
+        lastActiveSpeakerIdentity ? getDisplayName(lastActiveSpeakerIdentity) : undefined
+      );
     });
 
     ctx.room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
-      console.log(`👋 Participant left: ${participant.identity}`);
+      const name = getDisplayName(participant.identity);
+      participantNames.delete(participant.identity);
+      console.log(`👋 Participant left: ${name}`);
+      console.log(`👥 Participants (${participantNames.size}): ${buildParticipantList()}`);
+      // Tell Gemini about the departure
+      updateGeminiContext(
+        lastActiveSpeakerIdentity ? getDisplayName(lastActiveSpeakerIdentity) : undefined
+      );
     });
+
+    /**
+     * When the active speaker changes, update the Gemini model's
+     * live instructions so it knows who is currently talking.
+     * This gives the AI per-utterance speaker context.
+     */
+    let previousSpeakerIdentity: string | null = null;
 
     ctx.room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
       const humans = speakers.filter(
         (p) => p.identity !== localParticipant.identity
       );
       if (humans.length > 0) {
-        // Track who spoke last for transcript attribution
-        lastActiveSpeakerIdentity = humans[0].identity;
+        const newSpeaker = humans[0];
+        lastActiveSpeakerIdentity = newSpeaker.identity;
+
+        // Only update Gemini instructions if the speaker actually changed
+        if (newSpeaker.identity !== previousSpeakerIdentity) {
+          previousSpeakerIdentity = newSpeaker.identity;
+          const speakerName = getDisplayName(newSpeaker.identity);
+          updateGeminiContext(speakerName);
+          console.log(`🎯 Speaker changed → ${speakerName} (instructions updated)`);
+        }
+
         console.log(
           "🗣️ Active speakers:",
-          humans.map((h) => h.identity).join(", ")
+          humans.map((h) => `${getDisplayName(h.identity)}`).join(", ")
         );
       }
     });
 
     // ─────────────────────────────────────────────────────
-    // 9. START SESSION
+    // 10. START SESSION
     //    Disable RoomIO's automatic audio input so the SDK
     //    does NOT pin to a single participant. We then attach
     //    our mixed multi-participant stream manually.
@@ -399,6 +503,8 @@ Behavioral Guidelines:
     const activity = (session as any).activity;
     if (activity) {
       activity.attachAudioInput(mixedAudioReadable);
+      // Make the activity available to room event handlers
+      sessionActivity = activity;
       console.log("✅ Mixed multi-participant audio attached to session");
     } else {
       console.error("❌ No activity found — audio injection failed");
@@ -409,7 +515,7 @@ Behavioral Guidelines:
     );
 
     // ─────────────────────────────────────────────────────
-    // 10. INITIAL GREETING
+    // 11. INITIAL GREETING
     // ─────────────────────────────────────────────────────
     const greetHandle = session.generateReply({
       instructions: `Greet the participants as "${currentAgent.name}". Mention that you're ready for the "${currentMeeting.name}" meeting. Keep it brief and natural—like a real person joining a call.`,
