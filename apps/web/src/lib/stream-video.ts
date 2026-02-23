@@ -1,12 +1,10 @@
 import "server-only"
-// 1. Import RoomServiceClient
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
-// 2. Import your DB instance and schema
 import { db } from '@/db';
 import { agents, meetings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
-// Initialize the RoomService (needed to update room metadata)
+// Initialize the RoomService (needed to set room metadata)
 const roomService = new RoomServiceClient(
   process.env.LIVEKIT_URL!,
   process.env.LIVEKIT_API_KEY!,
@@ -106,7 +104,10 @@ export const generateLivekitToken = async (body: TokenRequest) => {
   }
 
   // ---------------------------------------------------------
-  // STEP 3: Generate Token (Standard)
+  // STEP 3: Generate Token (auto-dispatch — no explicit dispatch needed)
+  //         The agent uses automatic dispatch (no agentName in ServerOptions),
+  //         so LiveKit dispatches to any available agent worker when a
+  //         participant connects. Room metadata provides meeting context.
   // ---------------------------------------------------------
   const at = new AccessToken(process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, {
     identity: participantIdentity,
@@ -122,6 +123,9 @@ export const generateLivekitToken = async (body: TokenRequest) => {
     roomList: true,
     roomAdmin: true,
   });
+
+  console.log(`[TokenGen] Token generated for room "${roomName}" (auto-dispatch, metadata set on room)`);
+
   const token = await at.toJwt();
 
   return token;
