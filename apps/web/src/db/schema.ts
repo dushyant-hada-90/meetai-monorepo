@@ -1,12 +1,12 @@
-import { 
-  pgTable, 
-  text, 
-  timestamp, 
-  boolean, 
-  pgEnum, 
-  jsonb, 
-  primaryKey, 
-  index 
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  pgEnum,
+  jsonb,
+  primaryKey,
+  index
 } from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 
@@ -114,22 +114,22 @@ export const meetings = pgTable("meetings", {
   agentId: text("agent_id")
     .notNull()
     .references(() => agents.id, { onDelete: "cascade" }),
-  
+
   status: meetingStatus("status").notNull().default("upcoming"),
-  
+
   // NEW: The scheduled time (Planned)
   startsAt: timestamp("starts_at", { withTimezone: true, mode: "date" }),
-  
+
   // The actual execution times (Real)
   startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
   endedAt: timestamp("ended_at", { withTimezone: true, mode: "date" }),
-  
+
   transcript: jsonb("transcript")
     .$type<TranscriptItem[]>()
     .notNull()
     .default([]),
   summary: text("summary"),
-  
+
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow()
 });
@@ -175,4 +175,68 @@ export const meetingInvites = pgTable("meeting_invites", {
 }, (t) => ({
   // Index for fast lookups during "Get or Create" link generation
   meetingRoleIndex: index("meeting_role_idx").on(t.meetingId, t.role)
+}));
+
+
+// -------------------------
+// Tol calling
+// ------------------------
+export const actionStatus = pgEnum("action_status", [
+  "proposed",      // LLM detected
+  "pending",       // awaiting user confirmation
+  "confirmed",     // user approved
+  "rejected",      // user denied
+  "executing",     // backend executing tool
+  "completed",     // tool executed successfully
+  "failed"         // tool execution failed
+]);
+
+export const actionType = pgEnum("action_type", [
+  "send_email",
+  "create_calendar_event",
+  "create_jira_ticket",
+  "create_github_issue",
+  "post_slack_message"
+]);
+
+export const meetingActions = pgTable("meeting_actions", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+
+  meetingId: text("meeting_id")
+    .notNull()
+    .references(() => meetings.id, { onDelete: "cascade" }),
+
+  proposedByAgentId: text("agent_id")
+    .notNull()
+    .references(() => agents.id, { onDelete: "cascade" }),
+
+  type: actionType("type").notNull(),
+
+  // Structured tool payload
+  payload: jsonb("payload").notNull(),
+
+  // LLM confidence score
+  confidence: text("confidence"),
+
+  status: actionStatus("status")
+    .notNull()
+    .default("proposed"),
+
+  // Which user confirmed or rejected
+  resolvedByUserId: text("resolved_by_user_id")
+    .references(() => user.id, { onDelete: "set null" }),
+
+  // Tool execution response
+  executionResult: jsonb("execution_result"),
+
+  errorMessage: text("error_message"),
+
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  executedAt: timestamp("executed_at", { withTimezone: true })
+}, (t) => ({
+  meetingIdx: index("meeting_actions_meeting_idx").on(t.meetingId),
+  statusIdx: index("meeting_actions_status_idx").on(t.status)
 }));

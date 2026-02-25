@@ -30,11 +30,7 @@ import {
   useState,
   useRef,
   useCallback,
-  forwardRef,
-  useImperativeHandle,
 } from "react";
-import { useTRPC } from "@/trpc/client";
-import { useMutation } from "@tanstack/react-query";
 import {
   Video,
   VideoOff,
@@ -58,165 +54,133 @@ interface TranscriptLine {
   text: string;
   timestamp: number;
   index?: number;
-}
-
-interface TranscriptHandlerRef {
-  flush: () => Promise<void>;
+  segmentId?: string;
+  isFinal?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────
-// 1. TRANSCRIPT HANDLER — Buffered + Flush-before-leave
-//    The "scribe" (earliest-joined human) buffers incoming
-//    DataChannel messages and flushes them to the DB in bulk.
-//    On leave, the parent calls flush() before disconnecting.
-//    As a safety net, beforeunload uses sendBeacon to a REST
-//    endpoint so nothing is lost on tab close.
+// 1. TRANSCRIPT RECEIVER (Display only - NO storage)
+//    The agent now handles all DB storage directly.
+//    This component receives transcripts from TWO sources:
+//    1. LiveKit native transcription (lk.transcription topic)
+//    2. Custom DataChannel messages (transcript_update type)
+//    Both are merged for a complete live transcript view.
 // ─────────────────────────────────────────────────────────
-const TranscriptHandler = forwardRef<
-  TranscriptHandlerRef,
-  {
-    meetingId: string;
-    onTranscriptLine?: (line: TranscriptLine) => void;
-  }
->(({ meetingId, onTranscriptLine }, ref) => {
+function useTranscriptReceiver(
+  onTranscriptLine: (line: TranscriptLine) => void
+) {
   const room = useRoomContext();
-  const { localParticipant } = useLocalParticipant();
-  const remoteParticipants = useRemoteParticipants();
-  const trpc = useTRPC();
+  const processedSegments = useRef<Set<string>>(new Set());
+  const handlerRegistered = useRef(false);
 
-  const { mutateAsync: bulkAppend } = useMutation(
-    trpc.meetings.bulkAppendTranscript.mutationOptions()
-  );
-
-  // Buffer for pending transcript lines
-  const bufferRef = useRef<TranscriptLine[]>([]);
-  const flushingRef = useRef(false);
-
-  // Am I the designated scribe? (earliest-joined human)
-  const amIScribe = useMemo(() => {
-    if (!localParticipant || !localParticipant.joinedAt) return false;
-    const myJoinTime = localParticipant.joinedAt.getTime();
-
-    for (const p of remoteParticipants) {
-      if (p.kind === ParticipantKind.AGENT || p.identity.startsWith("agent-"))
-        continue;
-      if (!p.joinedAt) continue;
-      if (p.joinedAt.getTime() < myJoinTime) return false;
-      if (
-        p.joinedAt.getTime() === myJoinTime &&
-        p.identity < localParticipant.identity
-      )
-        return false;
-    }
-    return true;
-  }, [localParticipant, remoteParticipants]);
-
-  // Flush buffer to DB
-  const flush = useCallback(async () => {
-    if (flushingRef.current || bufferRef.current.length === 0) return;
-    flushingRef.current = true;
-
-    const lines = [...bufferRef.current];
-    bufferRef.current = [];
-
-    try {
-      await bulkAppend({ meetingId, lines });
-    } catch (e) {
-      // Put them back if flush failed
-      bufferRef.current = [...lines, ...bufferRef.current];
-      console.error("Transcript flush failed:", e);
-    } finally {
-      flushingRef.current = false;
-    }
-  }, [bulkAppend, meetingId]);
-
-  // Expose flush to parent
-  useImperativeHandle(ref, () => ({ flush }), [flush]);
-
-  // Periodic flush every 5 seconds
-  useEffect(() => {
-    if (!amIScribe) return;
-    const interval = setInterval(() => {
-      flush();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [amIScribe, flush]);
-
-  // Listen for DataChannel transcript messages
   useEffect(() => {
     if (!room) return;
 
-    const handleData = (payload: Uint8Array) => {
-      const decoder = new TextDecoder();
+    // Handler for custom DataChannel transcript messages (from agent)
+    const handleDataReceived = (payload: Uint8Array) => {
       try {
+        const decoder = new TextDecoder();
         const data = JSON.parse(decoder.decode(payload));
+        
         if (data.type === "transcript_update") {
-          const line: TranscriptLine = {
+          onTranscriptLine({
             role: data.role,
             speaker: data.speaker,
             text: data.text,
             timestamp: data.timestamp,
             index: data.index,
-          };
-
-          // Always update the live UI
-          onTranscriptLine?.(line);
-
-          // Only the scribe buffers for DB persistence
-          if (amIScribe) {
-            bufferRef.current.push({
-              role: line.role,
-              speaker: line.speaker,
-              text: line.text,
-              timestamp: line.timestamp,
-            });
-          }
+            isFinal: true, // DataChannel messages are always final
+          });
         }
       } catch (e) {
-        console.error("Failed to parse data packet", e);
+        // Silently ignore non-transcript data packets
       }
     };
 
-    room.on(RoomEvent.DataReceived, handleData);
+    room.on(RoomEvent.DataReceived, handleDataReceived);
+
+    // Handler for LiveKit native transcription (lk.transcription topic)
+    const handleTextStream = async (
+      reader: { info: { attributes: Record<string, string>; topic: string }; readAll: () => Promise<string> },
+      participantOrIdentity: string | Participant
+    ) => {
+      try {
+        const info = reader.info;
+        
+        // Only process transcription topic
+        if (info.topic !== "lk.transcription") return;
+
+        const isFinal = info.attributes["lk.transcription_final"] === "true";
+        const segmentId = info.attributes["lk.segment_id"];
+        const trackId = info.attributes["lk.transcribed_track_id"];
+
+        // Skip interim transcriptions to avoid duplicates
+        // Only process final transcriptions
+        if (!isFinal) return;
+
+        // Deduplicate by segment ID
+        if (segmentId && processedSegments.current.has(segmentId)) {
+          return;
+        }
+        if (segmentId) {
+          processedSegments.current.add(segmentId);
+        }
+
+        const text = await reader.readAll();
+        if (!text || text.trim().length === 0) return;
+
+        // Extract identity string - SDK may pass Participant object or string
+        const identity = typeof participantOrIdentity === "string" 
+          ? participantOrIdentity 
+          : participantOrIdentity?.identity ?? "unknown";
+
+        // Determine speaker role based on participant
+        const isAgent = identity.startsWith("agent-") || 
+                       (typeof participantOrIdentity !== "string" && participantOrIdentity?.kind === ParticipantKind.AGENT) ||
+                       room.remoteParticipants.get(identity)?.kind === ParticipantKind.AGENT;
+
+        onTranscriptLine({
+          role: isAgent ? "assistant" : "human",
+          speaker: identity,
+          text: text,
+          timestamp: Date.now(),
+          segmentId,
+          isFinal: true,
+        });
+      } catch (e) {
+        console.error("Failed to process transcription stream:", e);
+      }
+    };
+
+    // Register for LiveKit native transcription streams (only once)
+    // @ts-expect-error - registerTextStreamHandler is available in newer SDK versions
+    if (room.registerTextStreamHandler && !handlerRegistered.current) {
+      try {
+        // @ts-expect-error - registerTextStreamHandler may not be in type definitions
+        room.registerTextStreamHandler("lk.transcription", handleTextStream);
+        handlerRegistered.current = true;
+      } catch (e) {
+        // Handler may already be registered (e.g., from StrictMode double-invoke)
+        console.debug("Text stream handler already registered:", e);
+      }
+    }
+
     return () => {
-      room.off(RoomEvent.DataReceived, handleData);
+      room.off(RoomEvent.DataReceived, handleDataReceived);
+      // Unregister the text stream handler on cleanup
+      // @ts-expect-error - unregisterTextStreamHandler may not be in type definitions
+      if (room.unregisterTextStreamHandler && handlerRegistered.current) {
+        try {
+          // @ts-expect-error - unregisterTextStreamHandler may not be in type definitions
+          room.unregisterTextStreamHandler("lk.transcription");
+          handlerRegistered.current = false;
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      }
     };
-  }, [room, amIScribe, onTranscriptLine]);
-
-  // Safety net: beforeunload → sendBeacon to REST endpoint
-  useEffect(() => {
-    if (!amIScribe) return;
-
-    const handleBeforeUnload = () => {
-      if (bufferRef.current.length === 0) return;
-
-      const payload = JSON.stringify({
-        meetingId,
-        lines: bufferRef.current.map((l) => ({
-          role: l.role,
-          speaker: l.speaker,
-          text: l.text,
-          timestamp: l.timestamp,
-        })),
-      });
-
-      navigator.sendBeacon(
-        "/api/transcript",
-        new Blob([payload], { type: "application/json" })
-      );
-      bufferRef.current = [];
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, [amIScribe, meetingId]);
-
-  return null;
-});
-
-TranscriptHandler.displayName = "TranscriptHandler";
+  }, [room, onTranscriptLine]);
+}
 
 // ─────────────────────────────────────────────────────────
 // 2. PARTICIPANT TILE
@@ -477,7 +441,9 @@ interface CallActiveProps {
   meetingId: string;
 }
 
-export function CallActive({ meetingName, meetingId }: CallActiveProps) {
+export function CallActive({ meetingName, meetingId: _meetingId }: CallActiveProps) {
+  // Note: meetingId is kept in props for future use (e.g., analytics, debug)
+  // Transcript storage is now handled by the agent directly
   const { state, audioTrack } = useVoiceAssistant();
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
@@ -496,16 +462,24 @@ export function CallActive({ meetingName, meetingId }: CallActiveProps) {
   const [leaving, setLeaving] = useState(false);
   const [callStartTime] = useState(Date.now());
 
-  const transcriptRef = useRef<TranscriptHandlerRef>(null);
+  // Use the transcript receiver hook (display only - storage is handled by agent)
+  const handleTranscriptLine = useCallback((line: TranscriptLine) => {
+    setTranscriptLines((prev) => {
+      // Deduplicate by index if available
+      if (line.index !== undefined) {
+        const exists = prev.some((l) => l.index === line.index);
+        if (exists) return prev;
+      }
+      return [...prev, line];
+    });
+  }, []);
+
+  useTranscriptReceiver(handleTranscriptLine);
 
   useEffect(() => {
     setIsCameraOn(localParticipant.isCameraEnabled);
     setIsMicOn(localParticipant.isMicrophoneEnabled);
   }, [localParticipant]);
-
-  const handleTranscriptLine = useCallback((line: TranscriptLine) => {
-    setTranscriptLines((prev) => [...prev, line]);
-  }, []);
 
   const toggleCamera = async () => {
     const v = !isCameraOn;
@@ -519,20 +493,11 @@ export function CallActive({ meetingName, meetingId }: CallActiveProps) {
     await localParticipant.setMicrophoneEnabled(v);
   };
 
-  // Graceful leave: flush transcript buffer BEFORE disconnecting
+  // Simple leave: No client-side transcript flushing needed anymore
+  // Agent handles all transcript storage directly
   const handleLeave = async () => {
     if (leaving) return;
     setLeaving(true);
-
-    try {
-      // Flush any pending transcript lines before disconnecting
-      await transcriptRef.current?.flush();
-    } catch (e) {
-      console.error("Flush before leave failed:", e);
-    }
-
-    // Small delay so the last batch arrives at the server
-    await new Promise((r) => setTimeout(r, 300));
     await room.disconnect();
     setEnded(true);
   };
@@ -565,12 +530,7 @@ export function CallActive({ meetingName, meetingId }: CallActiveProps) {
 
   return (
     <div className="flex h-screen w-full bg-neutral-950 text-white font-sans overflow-hidden">
-      {/* Invisible transcript handler */}
-      <TranscriptHandler
-        ref={transcriptRef}
-        meetingId={meetingId}
-        onTranscriptLine={handleTranscriptLine}
-      />
+      {/* Transcript receiver is now handled by useTranscriptReceiver hook */}
       <RoomAudioRenderer />
 
       {/* MAIN AREA */}
