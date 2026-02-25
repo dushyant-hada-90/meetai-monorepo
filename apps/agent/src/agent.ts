@@ -19,6 +19,139 @@ import {
   type TrackPublication,
 } from "@livekit/rtc-node";
 import { fileURLToPath } from "node:url";
+// ✅ CHANGED: Import the factory function from your updated calendarTool file
+import { buildCalendarTool } from "./tools/calendarTool.js";
+
+// ─────────────────────────────────────────────────────────
+// TRANSCRIPT STORAGE SERVICE
+// Agent-side direct storage - no client buffering needed!
+// ─────────────────────────────────────────────────────────
+interface TranscriptLine {
+  role: "human" | "assistant";
+  speaker: string;
+  text: string;
+  timestamp: number;
+  index: number;
+}
+
+class TranscriptStorageService {
+  private buffer: TranscriptLine[] = [];
+  private flushPromise: Promise<void> | null = null;
+  private flushInterval: ReturnType<typeof setInterval> | null = null;
+  private readonly BATCH_SIZE = 10;
+  private readonly FLUSH_INTERVAL_MS = 3000;
+  private readonly MAX_RETRIES = 3;
+
+  constructor(
+    private meetingId: string,
+    private backendUrl: string,
+    private agentSecret: string
+  ) {
+    // Start periodic flush
+    this.flushInterval = setInterval(() => {
+      this.flush().catch((err) =>
+        console.error("❌ Periodic transcript flush failed:", err)
+      );
+    }, this.FLUSH_INTERVAL_MS);
+  }
+
+  add(line: TranscriptLine): void {
+    this.buffer.push(line);
+    console.log(`📝 Buffered transcript #${line.index} for storage (buffer: ${this.buffer.length})`);
+    
+    // Auto-flush if batch size reached
+    if (this.buffer.length >= this.BATCH_SIZE) {
+      this.flush().catch((err) =>
+        console.error("❌ Auto-flush failed:", err)
+      );
+    }
+  }
+
+  async flush(): Promise<void> {
+    // Wait for any in-progress flush
+    if (this.flushPromise) {
+      await this.flushPromise;
+    }
+
+    if (this.buffer.length === 0) return;
+
+    const lines = [...this.buffer];
+    this.buffer = [];
+
+    this.flushPromise = this.storeWithRetry(lines);
+    
+    try {
+      await this.flushPromise;
+    } finally {
+      this.flushPromise = null;
+    }
+  }
+
+  private async storeWithRetry(lines: TranscriptLine[]): Promise<void> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(`${this.backendUrl}/api/agent-transcript`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meetingId: this.meetingId,
+            agentSecret: this.agentSecret,
+            lines: lines.map((l) => ({
+              role: l.role,
+              speaker: l.speaker,
+              text: l.text,
+              timestamp: l.timestamp,
+              index: l.index,
+            })),
+          }),
+        });
+
+        if (!response.ok) {
+          const errorBody = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorBody}`);
+        }
+
+        const result = await response.json();
+        console.log(`✅ Stored ${result.stored} transcript lines to DB (attempt ${attempt})`);
+        return;
+      } catch (err) {
+        lastError = err as Error;
+        console.warn(`⚠️ Transcript storage attempt ${attempt}/${this.MAX_RETRIES} failed:`, err);
+        
+        if (attempt < this.MAX_RETRIES) {
+          // Exponential backoff
+          await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+        }
+      }
+    }
+
+    // All retries failed - put lines back in buffer for next flush
+    console.error(`❌ All transcript storage attempts failed. Re-buffering ${lines.length} lines.`);
+    this.buffer = [...lines, ...this.buffer];
+    throw lastError;
+  }
+
+  async shutdown(): Promise<void> {
+    // Stop periodic flush
+    if (this.flushInterval) {
+      clearInterval(this.flushInterval);
+      this.flushInterval = null;
+    }
+
+    // Final flush with extra retries
+    if (this.buffer.length > 0) {
+      console.log(`🔄 Final transcript flush: ${this.buffer.length} lines remaining`);
+      try {
+        await this.flush();
+        console.log("✅ Final transcript flush completed");
+      } catch (err) {
+        console.error("❌ Final transcript flush failed:", err);
+      }
+    }
+  }
+}
 
 // ─────────────────────────────────────────────────────────
 // Types matching frontend DB schema
@@ -51,8 +184,9 @@ interface RoomMetadata {
 class MeetingAgent extends voice.Agent {
   public agentName: string;
 
-  constructor(name: string, instructions: string) {
-    super({ instructions });
+  constructor(name: string, instructions: string, tools: any) {
+    // Pass tools down to the underlying LiveKit Agent
+    super({ instructions, tools });
     this.agentName = name;
   }
 }
@@ -194,7 +328,7 @@ export default defineAgent({
         model: "gemini-2.5-flash-native-audio-preview-12-2025",
         voice: "Puck",
         temperature: 0.7,
-        language: "en-IN", // Fix: prevent wrong-language transcription (Hindi for English)
+        language: "en-US", // Fix: prevent wrong-language transcription (Hindi for English)
         instructions: systemPrompt,
         // Native audio models only support AUDIO response modality.
         // TEXT modality causes "invalid argument" error on native audio models.
@@ -206,7 +340,27 @@ export default defineAgent({
       //    - The session handles turn detection automatically
       //      with Gemini realtime (no manual generateReply on speech stop)
       // ─────────────────────────────────────────────────────
-      const agent = new MeetingAgent(currentAgent.name, systemPrompt);
+      
+      // ✅ CHANGED: Set backend URL and build the tool dynamically
+      const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const calendarTool = buildCalendarTool(backendUrl, currentMeeting.id, currentAgent.id);
+
+      // ─────────────────────────────────────────────────────
+      // 5b. TRANSCRIPT STORAGE SERVICE (Agent-side direct storage)
+      //     This eliminates the unreliable client-side "scribe" pattern
+      // ─────────────────────────────────────────────────────
+      const agentSecret = process.env.LIVEKIT_API_SECRET || "";
+      const transcriptStorage = new TranscriptStorageService(
+        currentMeeting.id,
+        backendUrl,
+        agentSecret
+      );
+      console.log("✅ Transcript storage service initialized");
+
+      // ✅ CHANGED: Pass the configured tool map into the Agent
+      const agent = new MeetingAgent(currentAgent.name, systemPrompt, {
+        create_calendar_event: calendarTool,
+      });
 
       const session = new voice.AgentSession({
         llm: realtimeModel,
@@ -216,8 +370,10 @@ export default defineAgent({
       let transcriptIndex = 0;
 
       // ─────────────────────────────────────────────────────
-      // 6. TRANSCRIPT BROADCASTING via DataChannel
-      //    → Frontend listens on RoomEvent.DataReceived
+      // 6. TRANSCRIPT HANDLING
+      //    - Store directly to DB via TranscriptStorageService
+      //    - Also broadcast via DataChannel for real-time UI
+      //    - LiveKit native transcription is enabled for clients
       // ─────────────────────────────────────────────────────
       session.on(
         voice.AgentSessionEventTypes.ConversationItemAdded,
@@ -245,13 +401,26 @@ export default defineAgent({
             }
           }
 
+          const currentIndex = transcriptIndex++;
+          const timestamp = Date.now();
+
+          // 1. STORE TO DB (primary - guaranteed persistence)
+          transcriptStorage.add({
+            role: assignedRole,
+            speaker: speakerId,
+            text: text,
+            timestamp: timestamp,
+            index: currentIndex,
+          });
+
+          // 2. BROADCAST VIA DATA CHANNEL (secondary - for real-time UI)
           const payload = {
             type: "transcript_update",
             role: assignedRole,
             speaker: speakerId,
             text: text,
-            timestamp: Date.now(),
-            index: transcriptIndex++,
+            timestamp: timestamp,
+            index: currentIndex,
           };
 
           try {
@@ -265,6 +434,7 @@ export default defineAgent({
             );
           } catch (err) {
             console.error("❌ Failed to publish transcript data:", err);
+            // Note: DB storage already happened, so UI may lag but data is safe
           }
         }
       );
@@ -304,8 +474,16 @@ export default defineAgent({
 
       session.on(
         voice.AgentSessionEventTypes.Close,
-        (event) => {
-          console.log("🔒 Session closed. Reason:", event.reason);
+        async (event) => {
+          console.log("🔒 Session closing. Reason:", event.reason);
+          
+          // CRITICAL: Flush all pending transcripts before session ends
+          try {
+            await transcriptStorage.shutdown();
+            console.log("✅ Transcript storage shutdown complete");
+          } catch (err) {
+            console.error("❌ Failed to shutdown transcript storage:", err);
+          }
         }
       );
 
