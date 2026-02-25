@@ -12,52 +12,8 @@ import { generateObject } from "ai";
 import { google } from "@ai-sdk/google";
 export const meetingsRouter = createTRPCRouter({
 
-
     // ---------------------------------------------------------
-    // 1 BULK APPEND TRANSCRIPT
-    // Appends multiple lines at once. Used by the TranscriptHandler
-    // to flush buffered transcript lines before disconnect.
-    // ---------------------------------------------------------
-    bulkAppendTranscript: protectedProcedure
-        .input(z.object({
-            meetingId: z.string(),
-            lines: z.array(z.object({
-                role: z.enum(["human", "assistant"]),
-                speaker: z.string(),
-                text: z.string(),
-                timestamp: z.number(),
-            }))
-        }))
-        .mutation(async ({ input, ctx }) => {
-            if (input.lines.length === 0) return { success: true };
-
-            const [participant] = await db
-                .select()
-                .from(meetingParticipants)
-                .where(and(
-                    eq(meetingParticipants.meetingId, input.meetingId),
-                    eq(meetingParticipants.userId, ctx.auth.user.id)
-                ));
-
-            if (!participant) {
-                throw new TRPCError({
-                    code: "FORBIDDEN",
-                    message: "You must be a participant to update the transcript"
-                });
-            }
-
-            await db
-                .update(meetings)
-                .set({
-                    transcript: sql`COALESCE(${meetings.transcript}, '[]'::jsonb) || ${JSON.stringify(input.lines)}::jsonb`,
-                })
-                .where(eq(meetings.id, input.meetingId));
-
-            return { success: true };
-        }),
-
-    // ---------------------------------------------------------
-    // 2. GET TRANSCRIPT
+    // GET TRANSCRIPT
     // Fetches the transcript and resolves User IDs to actual Names/Images.
     // FIX APPLIED: Changed from `createdByUserId` check to `meetingParticipants` check
     // so that invited attendees can also view the transcript.
