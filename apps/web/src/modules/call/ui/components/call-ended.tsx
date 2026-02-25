@@ -46,9 +46,9 @@ export const CallEnded = ({
   }, [duration]);
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-neutral-950 p-4 font-sans">
-      {/* Background gradient */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-950/20 via-neutral-950 to-neutral-950" />
+    <div className="flex min-h-screen w-full items-center justify-center bg-background p-4 font-sans transition-colors">
+      {/* Background gradient - theme aware */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/5 via-background to-background" />
 
       <div
         className={`relative z-10 flex flex-col items-center gap-8 transition-all duration-700 ${
@@ -59,18 +59,18 @@ export const CallEnded = ({
       >
         {/* Success icon with animated ring */}
         <div className="relative">
-          <div className="absolute -inset-3 rounded-full bg-emerald-500/10 animate-ping" style={{ animationDuration: "3s" }} />
-          <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/20">
-            <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+          <div className="absolute -inset-3 rounded-full bg-green-500/10 animate-ping" style={{ animationDuration: "3s" }} />
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-green-500/10 border border-green-500/20">
+            <CheckCircle2 className="h-10 w-10 text-green-500" />
           </div>
         </div>
 
         {/* Main text */}
         <div className="flex flex-col items-center gap-2 text-center max-w-sm">
-          <h1 className="text-2xl font-semibold text-white tracking-tight">
+          <h1 className="text-2xl font-semibold text-foreground tracking-tight">
             Meeting Ended
           </h1>
-          <p className="text-sm text-neutral-400 leading-relaxed">
+          <p className="text-sm text-muted-foreground leading-relaxed">
             Your meeting has been recorded. An AI summary is being generated and will be available shortly.
           </p>
         </div>
@@ -79,26 +79,26 @@ export const CallEnded = ({
         {(duration > 0 || participants > 0) && (
           <div className="flex items-center gap-3">
             {duration > 0 && (
-              <div className="flex items-center gap-2.5 rounded-xl bg-neutral-900/60 border border-white/5 px-4 py-3">
-                <Clock size={16} className="text-indigo-400" />
+              <div className="flex items-center gap-2.5 rounded-xl bg-card border border-border px-4 py-3">
+                <Clock size={16} className="text-primary" />
                 <div className="flex flex-col">
-                  <span className="text-xs text-neutral-500 font-medium">
+                  <span className="text-xs text-muted-foreground font-medium">
                     Duration
                   </span>
-                  <span className="text-sm font-semibold text-white">
+                  <span className="text-sm font-semibold text-foreground">
                     {formattedDuration}
                   </span>
                 </div>
               </div>
             )}
             {participants > 0 && (
-              <div className="flex items-center gap-2.5 rounded-xl bg-neutral-900/60 border border-white/5 px-4 py-3">
-                <Users size={16} className="text-purple-400" />
+              <div className="flex items-center gap-2.5 rounded-xl bg-card border border-border px-4 py-3">
+                <Users size={16} className="text-primary" />
                 <div className="flex flex-col">
-                  <span className="text-xs text-neutral-500 font-medium">
+                  <span className="text-xs text-muted-foreground font-medium">
                     Participants
                   </span>
-                  <span className="text-sm font-semibold text-white">
+                  <span className="text-sm font-semibold text-foreground">
                     {participants}
                   </span>
                 </div>
@@ -108,9 +108,9 @@ export const CallEnded = ({
         )}
 
         {/* Processing indicator */}
-        <div className="flex items-center gap-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 px-4 py-2">
-          <Sparkles size={14} className="text-indigo-400 animate-pulse" />
-          <span className="text-xs font-medium text-indigo-300">
+        <div className="flex items-center gap-2 rounded-full bg-primary/10 border border-primary/20 px-4 py-2">
+          <Sparkles size={14} className="text-primary animate-pulse" />
+          <span className="text-xs font-medium text-primary">
             AI is generating your summary...
           </span>
         </div>
@@ -120,7 +120,7 @@ export const CallEnded = ({
           <Button
             asChild
             variant="outline"
-            className="w-full rounded-xl h-11 border-white/10 bg-neutral-900/50 hover:bg-neutral-800 text-neutral-300"
+            className="w-full rounded-xl h-11"
           >
             <Link href="/meetings">
               <Calendar className="w-4 h-4 mr-2" />

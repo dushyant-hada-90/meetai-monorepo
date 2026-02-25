@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { Mic, MicOff, Video, VideoOff, Settings } from "lucide-react"
+import { useEffect, useRef, useState, useCallback } from "react"
+import { Mic, MicOff, Video, VideoOff, ChevronDown, Monitor } from "lucide-react"
 
 interface Props {
   onJoin: (opts: { audio: boolean; video: boolean; deviceId?: { audio?: string; video?: string } }) => void
@@ -22,16 +22,32 @@ export const CallLobby = ({ onJoin }: Props) => {
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedAudioId, setSelectedAudioId] = useState<string>("")
   const [selectedVideoId, setSelectedVideoId] = useState<string>("")
-  const [showSettings, setShowSettings] = useState(false)
+  const [showAudioMenu, setShowAudioMenu] = useState(false)
+  const [showVideoMenu, setShowVideoMenu] = useState(false)
+  
+  // Loading states
+  const [isTogglingCamera, setIsTogglingCamera] = useState(false)
 
-  // Initialization
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Audio context ref for cleanup
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
+  // Keep streamRef in sync
+  useEffect(() => {
+    streamRef.current = stream
+  }, [stream])
+
+  // Initialize devices on mount
   useEffect(() => {
     initDevices()
     return () => {
-      cleanupStream()
+      // Cleanup stream on unmount
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop())
+      }
     }
-  }, []) // intentionally run once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Audio Level Visualizer
   useEffect(() => {
@@ -40,30 +56,55 @@ export const CallLobby = ({ onJoin }: Props) => {
       return
     }
 
-    const audioContext = new AudioContext()
-    const analyser = audioContext.createAnalyser()
-    const microphone = audioContext.createMediaStreamSource(stream)
-    const scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1)
+    // Check if stream has active audio tracks
+    const audioTracks = stream.getAudioTracks()
+    if (audioTracks.length === 0 || !audioTracks.some(t => t.readyState === 'live')) {
+      setAudioLevel(0)
+      return
+    }
 
-    analyser.smoothingTimeConstant = 0.8
-    analyser.fftSize = 1024
+    let audioContext: AudioContext | null = null
+    let microphone: MediaStreamAudioSourceNode | null = null
+    let scriptProcessor: ScriptProcessorNode | null = null
+    let analyser: AnalyserNode | null = null
 
-    microphone.connect(analyser)
-    analyser.connect(scriptProcessor)
-    scriptProcessor.connect(audioContext.destination)
+    try {
+      audioContext = new AudioContext()
+      audioContextRef.current = audioContext
+      analyser = audioContext.createAnalyser()
+      microphone = audioContext.createMediaStreamSource(stream)
+      scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1)
 
-    scriptProcessor.onaudioprocess = () => {
-      const array = new Uint8Array(analyser.frequencyBinCount)
-      analyser.getByteFrequencyData(array)
-      const values = array.reduce((a, b) => a + b, 0)
-      const average = values / array.length
-      setAudioLevel(Math.min(100, average * 1.5)) // Normalize nicely
+      analyser.smoothingTimeConstant = 0.8
+      analyser.fftSize = 1024
+
+      microphone.connect(analyser)
+      analyser.connect(scriptProcessor)
+      scriptProcessor.connect(audioContext.destination)
+
+      scriptProcessor.onaudioprocess = () => {
+        if (!analyser) return
+        const array = new Uint8Array(analyser.frequencyBinCount)
+        analyser.getByteFrequencyData(array)
+        const values = array.reduce((a, b) => a + b, 0)
+        const average = values / array.length
+        setAudioLevel(Math.min(100, average * 2))
+      }
+    } catch (err) {
+      console.error('Error setting up audio visualizer:', err)
     }
 
     return () => {
-      microphone.disconnect()
-      scriptProcessor.disconnect()
-      audioContext.close()
+      try {
+        if (microphone) microphone.disconnect()
+        if (scriptProcessor) scriptProcessor.disconnect()
+        if (audioContext && audioContext.state !== 'closed') {
+          audioContext.close()
+        }
+      } catch (err) {
+        // Ignore cleanup errors
+      }
+      audioContextRef.current = null
     }
   }, [stream, micOn])
 
@@ -84,25 +125,45 @@ export const CallLobby = ({ onJoin }: Props) => {
       initialStream.getTracks().forEach(t => t.stop())
 
       // Start actual stream with defaults or first found
-      startStream(video[0]?.deviceId, audio[0]?.deviceId)
+      if (video[0]?.deviceId) setSelectedVideoId(video[0].deviceId)
+      if (audio[0]?.deviceId) setSelectedAudioId(audio[0].deviceId)
+      
+      await startStream(video[0]?.deviceId, audio[0]?.deviceId, true, true)
 
     } catch (err) {
       console.error("Permission error", err)
-      setPermissionError("Please allow camera and microphone access to join.")
+      setPermissionError("Please allow camera and microphone access to join the meeting.")
     }
   }
 
-  async function startStream(videoId?: string, audioId?: string) {
+  const startStream = useCallback(async (
+    videoId?: string, 
+    audioId?: string, 
+    enableVideo = true,
+    enableAudio = true
+  ) => {
     cleanupStream()
 
     try {
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: videoId ? { deviceId: { exact: videoId } } : true,
-        audio: audioId ? { deviceId: { exact: audioId } } : true
-      })
+      const constraints: MediaStreamConstraints = {}
+      
+      if (enableVideo) {
+        constraints.video = videoId ? { deviceId: { exact: videoId } } : true
+      }
+      if (enableAudio) {
+        constraints.audio = audioId ? { deviceId: { exact: audioId } } : true
+      }
+
+      // Don't request empty stream
+      if (!enableVideo && !enableAudio) {
+        setStream(null)
+        return
+      }
+
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints)
       
       setStream(newStream)
-      if (videoRef.current) {
+      if (videoRef.current && enableVideo) {
         videoRef.current.srcObject = newStream
       }
 
@@ -117,170 +178,307 @@ export const CallLobby = ({ onJoin }: Props) => {
       setPermissionError(null)
     } catch (err) {
       console.error("Stream start error", err)
-      setPermissionError("Could not access selected device.")
+      setPermissionError("Could not access selected device. Please check your permissions.")
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function cleanupStream() {
     if (stream) {
       stream.getTracks().forEach(t => t.stop())
+      setStream(null)
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
     }
   }
 
-  // Toggles
-  const toggleCamera = () => {
-    if (stream) {
-      stream.getVideoTracks().forEach(t => t.enabled = !cameraOn)
-      setCameraOn(!cameraOn)
+  // Toggle camera - FULLY STOP/START hardware
+  const toggleCamera = async () => {
+    if (isTogglingCamera) return
+    setIsTogglingCamera(true)
+    
+    try {
+      if (cameraOn) {
+        // Stop camera completely - this turns off the hardware LED
+        if (stream) {
+          stream.getVideoTracks().forEach(t => t.stop())
+        }
+        setCameraOn(false)
+        if (videoRef.current) {
+          videoRef.current.srcObject = null
+        }
+        // If mic is also off, clear stream entirely
+        if (!micOn) {
+          setStream(null)
+        }
+      } else {
+        // Restart camera - get fresh stream
+        await startStream(selectedVideoId, selectedAudioId, true, micOn)
+        setCameraOn(true)
+      }
+    } finally {
+      setIsTogglingCamera(false)
     }
   }
 
-  const toggleMic = () => {
-    if (stream) {
-      stream.getAudioTracks().forEach(t => t.enabled = !micOn)
-      setMicOn(!micOn)
+  // Toggle mic - FULLY STOP/START hardware
+  const toggleMic = async () => {
+    if (micOn) {
+      // Stop mic completely - this truly stops the mic hardware
+      if (stream) {
+        stream.getAudioTracks().forEach(t => t.stop())
+      }
+      setMicOn(false)
+      // If camera is also off, clear stream entirely
+      if (!cameraOn) {
+        setStream(null)
+      }
+    } else {
+      // Restart mic - get fresh stream
+      await startStream(selectedVideoId, selectedAudioId, cameraOn, true)
+      setMicOn(true)
     }
   }
 
-  const handleDeviceChange = (type: 'audio' | 'video', deviceId: string) => {
+  const handleDeviceChange = async (type: 'audio' | 'video', deviceId: string) => {
     if (type === 'audio') {
       setSelectedAudioId(deviceId)
-      startStream(selectedVideoId, deviceId)
+      await startStream(selectedVideoId, deviceId, cameraOn, true)
+      setMicOn(true)
     } else {
       setSelectedVideoId(deviceId)
-      startStream(deviceId, selectedAudioId)
+      await startStream(deviceId, selectedAudioId, true, micOn)
+      setCameraOn(true)
     }
+    setShowAudioMenu(false)
+    setShowVideoMenu(false)
   }
 
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowAudioMenu(false)
+      setShowVideoMenu(false)
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [])
+
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-neutral-950 p-4 font-sans">
-      <div className="flex w-full max-w-5xl flex-col gap-6 overflow-hidden rounded-3xl bg-neutral-900/50 p-2 shadow-2xl backdrop-blur-xl border border-white/5 md:flex-row md:p-4">
+    <div className="flex min-h-screen w-full items-center justify-center bg-background p-4 md:p-8 transition-colors">
+      <div className="flex w-full max-w-4xl flex-col items-center gap-8">
         
-        {/* LEFT: Video Preview */}
-        <div className="relative flex-1 overflow-hidden rounded-2xl bg-black aspect-video md:aspect-auto">
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            playsInline
-            className={`h-full w-full object-cover transition-opacity duration-300 ${cameraOn ? 'opacity-100' : 'opacity-0'} ${cameraOn ? '-scale-x-100' : ''}`} // Mirror effect
-          />
-          
-          {/* Camera Off State */}
-          {!cameraOn && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-neutral-800">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-neutral-700">
-                <div className="h-10 w-10 text-neutral-400">
-                  <VideoOff size={40} />
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl md:text-3xl font-semibold text-foreground tracking-tight">
+            Ready to join?
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Check your audio and video before joining
+          </p>
+        </div>
+
+        {/* Main Content Card */}
+        <div className="w-full max-w-2xl">
+          {/* Video Preview Container */}
+          <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-card border border-border shadow-lg">
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              className={`h-full w-full object-cover transition-opacity duration-300 scale-x-[-1] ${
+                cameraOn ? 'opacity-100' : 'opacity-0'
+              }`}
+            />
+            
+            {/* Camera Off State */}
+            {!cameraOn && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-muted">
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-secondary">
+                  <VideoOff size={40} className="text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground font-medium">Camera is off</p>
+              </div>
+            )}
+
+            {/* Loading overlay for camera toggle */}
+            {isTogglingCamera && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+
+            {/* Audio Level Indicator */}
+            {micOn && (
+              <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-background/80 dark:bg-card/80 px-3 py-2 backdrop-blur-md border border-border">
+                <Mic size={14} className="text-primary" />
+                <div className="flex items-end gap-0.5 h-4">
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <div 
+                      key={i} 
+                      className="w-1 rounded-full transition-all duration-100 bg-primary"
+                      style={{ 
+                        height: `${Math.max(15, Math.min(100, audioLevel * (i * 0.5)))}%`,
+                        opacity: audioLevel > (i * 15) ? 1 : 0.3
+                      }}
+                    />
+                  ))}
                 </div>
               </div>
-              <p className="text-neutral-400 font-medium">Camera is off</p>
-            </div>
-          )}
+            )}
 
-          {/* Audio Meter Overlay */}
-          <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 backdrop-blur-md border border-white/10">
-            {micOn ? (
-               <div className="flex items-end gap-1 h-4">
-                 {[1, 2, 3].map(i => (
-                   <div 
-                     key={i} 
-                     className="w-1 bg-green-500 rounded-full transition-all duration-75"
-                     style={{ height: `${Math.max(20, Math.min(100, audioLevel * (i * 0.8)))}%` }}
-                   />
-                 ))}
-               </div>
-            ) : (
-               <MicOff size={14} className="text-red-400" />
+            {/* Mic Off Badge */}
+            {!micOn && (
+              <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-destructive/10 px-3 py-2 border border-destructive/20">
+                <MicOff size={14} className="text-destructive" />
+                <span className="text-xs font-medium text-destructive">Mic off</span>
+              </div>
+            )}
+
+            {/* Permission Error */}
+            {permissionError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/95 p-6 text-center">
+                <div className="space-y-3">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+                    <Monitor size={24} className="text-destructive" />
+                  </div>
+                  <p className="text-destructive text-sm font-medium max-w-xs">{permissionError}</p>
+                </div>
+              </div>
             )}
           </div>
 
-          {permissionError && (
-             <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-6 text-center">
-                <p className="text-red-400 font-medium">{permissionError}</p>
-             </div>
-          )}
-        </div>
-
-        {/* RIGHT: Controls */}
-        <div className="flex w-full flex-col justify-center space-y-8 p-4 md:w-80 md:p-6">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-semibold text-white tracking-tight">Ready to join?</h1>
-            <p className="text-sm text-neutral-400">Check your audio and video settings.</p>
-          </div>
-
-          {/* Device Selection (Collapsible) */}
-          <div className="space-y-4">
-             <button 
-               onClick={() => setShowSettings(!showSettings)}
-               className="flex items-center gap-2 text-xs font-medium text-neutral-400 hover:text-white transition-colors"
-             >
-               <Settings size={14} />
-               {showSettings ? "Hide Settings" : "Check Settings"}
-             </button>
-
-             {showSettings && (
-               <div className="space-y-3 animate-in slide-in-from-top-2 fade-in duration-200">
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold">Microphone</label>
-                    <select 
-                      value={selectedAudioId}
-                      onChange={(e) => handleDeviceChange('audio', e.target.value)}
-                      className="w-full bg-neutral-800 border border-neutral-700 rounded-md px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-                    >
-                      {audioDevices.map(d => (
-                        <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,5)}...`}</option>
-                      ))}
-                    </select>
+          {/* Control Bar - Google Meet Style */}
+          <div className="mt-6 flex items-center justify-center gap-3">
+            {/* Mic Button with Dropdown */}
+            <div className="relative">
+              <div className="flex items-center rounded-full border border-border bg-card shadow-sm overflow-hidden">
+                <button
+                  onClick={toggleMic}
+                  className={`flex items-center justify-center p-4 transition-colors ${
+                    micOn 
+                      ? "text-foreground hover:bg-muted" 
+                      : "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  }`}
+                  title={micOn ? "Turn off microphone" : "Turn on microphone"}
+                >
+                  {micOn ? <Mic size={22} /> : <MicOff size={22} />}
+                </button>
+                <div className="h-8 w-px bg-border" />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowAudioMenu(!showAudioMenu)
+                    setShowVideoMenu(false)
+                  }}
+                  className="flex items-center justify-center p-3 text-foreground hover:bg-muted transition-colors"
+                  title="Select microphone"
+                >
+                  <ChevronDown size={16} />
+                </button>
+              </div>
+              
+              {/* Audio Device Menu */}
+              {showAudioMenu && (
+                <div 
+                  className="absolute bottom-full mb-2 left-0 min-w-[280px] rounded-xl bg-popover border border-border shadow-xl p-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Microphone
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase tracking-wider text-neutral-500 font-bold">Camera</label>
-                    <select 
-                      value={selectedVideoId}
-                      onChange={(e) => handleDeviceChange('video', e.target.value)}
-                      className="w-full bg-neutral-800 border border-neutral-700 rounded-md px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  {audioDevices.map(d => (
+                    <button
+                      key={d.deviceId}
+                      onClick={() => handleDeviceChange('audio', d.deviceId)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                        selectedAudioId === d.deviceId 
+                          ? "bg-primary/10 text-primary font-medium" 
+                          : "text-foreground hover:bg-muted"
+                      }`}
                     >
-                      {videoDevices.map(d => (
-                        <option key={d.deviceId} value={d.deviceId}>{d.label || `Cam ${d.deviceId.slice(0,5)}...`}</option>
-                      ))}
-                    </select>
+                      {d.label || `Microphone ${d.deviceId.slice(0, 8)}...`}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Camera Button with Dropdown */}
+            <div className="relative">
+              <div className="flex items-center rounded-full border border-border bg-card shadow-sm overflow-hidden">
+                <button
+                  onClick={toggleCamera}
+                  disabled={isTogglingCamera}
+                  className={`flex items-center justify-center p-4 transition-colors ${
+                    cameraOn 
+                      ? "text-foreground hover:bg-muted" 
+                      : "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  } ${isTogglingCamera ? 'opacity-50 cursor-wait' : ''}`}
+                  title={cameraOn ? "Turn off camera" : "Turn on camera"}
+                >
+                  {cameraOn ? <Video size={22} /> : <VideoOff size={22} />}
+                </button>
+                <div className="h-8 w-px bg-border" />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowVideoMenu(!showVideoMenu)
+                    setShowAudioMenu(false)
+                  }}
+                  className="flex items-center justify-center p-3 text-foreground hover:bg-muted transition-colors"
+                  title="Select camera"
+                >
+                  <ChevronDown size={16} />
+                </button>
+              </div>
+              
+              {/* Video Device Menu */}
+              {showVideoMenu && (
+                <div 
+                  className="absolute bottom-full mb-2 left-0 min-w-[280px] rounded-xl bg-popover border border-border shadow-xl p-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Camera
                   </div>
-               </div>
-             )}
+                  {videoDevices.map(d => (
+                    <button
+                      key={d.deviceId}
+                      onClick={() => handleDeviceChange('video', d.deviceId)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                        selectedVideoId === d.deviceId 
+                          ? "bg-primary/10 text-primary font-medium" 
+                          : "text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {d.label || `Camera ${d.deviceId.slice(0, 8)}...`}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center justify-between gap-4">
-             <button
-                onClick={toggleMic}
-                className={`flex flex-1 flex-col items-center gap-2 rounded-xl border p-4 transition-all duration-200 ${
-                   micOn 
-                   ? "border-neutral-700 bg-neutral-800/50 hover:bg-neutral-800 text-white" 
-                   : "border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20"
-                }`}
-             >
-                {micOn ? <Mic size={24} /> : <MicOff size={24} />}
-                <span className="text-xs font-medium">{micOn ? "Mic On" : "Mic Off"}</span>
-             </button>
-             
-             <button
-                onClick={toggleCamera}
-                className={`flex flex-1 flex-col items-center gap-2 rounded-xl border p-4 transition-all duration-200 ${
-                   cameraOn 
-                   ? "border-neutral-700 bg-neutral-800/50 hover:bg-neutral-800 text-white" 
-                   : "border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20"
-                }`}
-             >
-                {cameraOn ? <Video size={24} /> : <VideoOff size={24} />}
-                <span className="text-xs font-medium">{cameraOn ? "Cam On" : "Cam Off"}</span>
-             </button>
+          {/* Join Button */}
+          <div className="mt-8 flex justify-center">
+            <button
+              onClick={() => {
+                cleanupStream()
+                onJoin({ audio: micOn, video: cameraOn })
+              }}
+              className="rounded-full bg-primary px-10 py-4 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/90 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Join now
+            </button>
           </div>
 
-          <button
-            onClick={() => onJoin({ audio: micOn, video: cameraOn })}
-            className="w-full rounded-xl bg-indigo-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-500 hover:shadow-indigo-500/40 active:scale-[0.98]"
-          >
-            Join Meeting
-          </button>
+          {/* Hints */}
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            You can change these settings during the call
+          </p>
         </div>
       </div>
     </div>

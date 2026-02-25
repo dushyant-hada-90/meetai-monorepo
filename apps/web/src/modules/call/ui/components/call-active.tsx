@@ -41,6 +41,8 @@ import {
   X,
   Users,
   Clock,
+  MoreVertical,
+  Pin,
 } from "lucide-react";
 import "@livekit/components-styles";
 import { CallEnded } from "./call-ended";
@@ -183,16 +185,20 @@ function useTranscriptReceiver(
 }
 
 // ─────────────────────────────────────────────────────────
-// 2. PARTICIPANT TILE
+// 2. PARTICIPANT TILE - Google Meet Style
 // ─────────────────────────────────────────────────────────
 function ParticipantTile({
   participant,
   trackRef,
   isLocal = false,
+  isPinned = false,
+  onPin,
 }: {
   participant: Participant;
   trackRef?: TrackReference;
   isLocal?: boolean;
+  isPinned?: boolean;
+  onPin?: () => void;
 }) {
   const isSpeaking = useIsSpeaking(participant);
   const [isVideoEnabled, setIsVideoEnabled] = useState(
@@ -201,6 +207,7 @@ function ParticipantTile({
   const [isMicEnabled, setIsMicEnabled] = useState(
     participant.isMicrophoneEnabled
   );
+  const [showMenu, setShowMenu] = useState(false);
 
   useEffect(() => {
     const update = () => {
@@ -225,11 +232,11 @@ function ParticipantTile({
 
   return (
     <div
-      className={`relative group h-full w-full overflow-hidden rounded-2xl bg-neutral-900 transition-all duration-300 ${
+      className={`group relative h-full w-full overflow-hidden rounded-xl bg-card transition-all duration-300 ${
         isSpeaking
-          ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-neutral-950"
-          : "ring-1 ring-white/10"
-      }`}
+          ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+          : "ring-1 ring-border"
+      } ${isPinned ? "ring-2 ring-primary" : ""}`}
     >
       {/* Video */}
       {trackRef && isVideoEnabled ? (
@@ -240,19 +247,40 @@ function ParticipantTile({
           />
         </div>
       ) : (
-        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-800 to-neutral-900">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 text-white text-xl font-bold shadow-lg">
+        <div className="flex h-full w-full items-center justify-center bg-muted">
+          <div className="flex h-20 w-20 md:h-24 md:w-24 items-center justify-center rounded-full bg-primary text-primary-foreground text-xl md:text-2xl font-bold shadow-lg">
             {initials}
           </div>
         </div>
       )}
 
+      {/* Hover Menu */}
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button 
+          onClick={() => setShowMenu(!showMenu)}
+          className="p-2 rounded-full bg-background/80 backdrop-blur-sm text-foreground hover:bg-background transition-colors"
+        >
+          <MoreVertical size={16} />
+        </button>
+        {showMenu && onPin && (
+          <div className="absolute top-full right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg p-1 min-w-[140px]">
+            <button 
+              onClick={() => { onPin(); setShowMenu(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted rounded-md"
+            >
+              <Pin size={14} />
+              {isPinned ? "Unpin" : "Pin"}
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Bottom overlay */}
-      <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
+      <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/60 to-transparent">
         <div className="flex items-center gap-2">
           {!isMicEnabled && (
-            <div className="rounded-full bg-red-500/20 p-1 text-red-400">
-              <MicOff size={11} />
+            <div className="rounded-full bg-destructive/20 p-1.5 text-destructive">
+              <MicOff size={12} />
             </div>
           )}
           {isSpeaking && isMicEnabled && (
@@ -260,7 +288,7 @@ function ParticipantTile({
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="w-0.5 bg-indigo-400 rounded-full animate-pulse"
+                  className="w-0.5 bg-primary rounded-full animate-pulse"
                   style={{
                     height: `${40 + i * 20}%`,
                     animationDelay: `${i * 100}ms`,
@@ -269,7 +297,7 @@ function ParticipantTile({
               ))}
             </div>
           )}
-          <span className="text-xs font-medium text-white/90 truncate">
+          <span className="text-xs font-medium text-white truncate">
             {isLocal ? "You" : participant.name || participant.identity}
           </span>
         </div>
@@ -279,7 +307,7 @@ function ParticipantTile({
 }
 
 // ─────────────────────────────────────────────────────────
-// 3. AGENT TILE
+// 3. AGENT TILE - Theme Aware
 // ─────────────────────────────────────────────────────────
 function AgentTile({
   state,
@@ -291,10 +319,10 @@ function AgentTile({
   agentName: string;
 }) {
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-950/60 to-purple-950/60 ring-1 ring-indigo-500/20 flex items-center justify-center">
+    <div className="relative h-full w-full overflow-hidden rounded-xl bg-card ring-1 ring-border flex items-center justify-center">
       {/* Glow effect when speaking */}
       <div
-        className={`absolute inset-0 bg-indigo-500/5 transition-opacity duration-500 ${
+        className={`absolute inset-0 bg-primary/5 transition-opacity duration-500 ${
           state === "speaking" ? "opacity-100" : "opacity-0"
         }`}
       />
@@ -302,7 +330,7 @@ function AgentTile({
       <div className="relative z-10 flex flex-col items-center gap-5">
         <div className="relative">
           <div
-            className={`absolute -inset-6 rounded-full bg-indigo-500/15 blur-2xl transition-all duration-500 ${
+            className={`absolute -inset-6 rounded-full bg-primary/15 blur-2xl transition-all duration-500 ${
               state === "speaking"
                 ? "opacity-100 scale-110"
                 : "opacity-0 scale-95"
@@ -317,25 +345,25 @@ function AgentTile({
             }
             barCount={7}
             options={{ minHeight: 36, maxHeight: 100 }}
-            className="h-28 w-44 text-indigo-400"
+            className="h-28 w-44 text-primary"
           />
         </div>
 
         <div className="flex flex-col items-center gap-2">
-          <h3 className="text-base font-semibold text-indigo-100">
+          <h3 className="text-base font-semibold text-foreground">
             {agentName}
           </h3>
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/30 border border-white/5">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted border border-border">
             <div
               className={`h-1.5 w-1.5 rounded-full transition-colors duration-300 ${
                 state === "speaking"
-                  ? "bg-indigo-400 animate-pulse"
+                  ? "bg-primary animate-pulse"
                   : state === "listening"
-                  ? "bg-emerald-400"
-                  : "bg-neutral-500"
+                  ? "bg-green-500"
+                  : "bg-muted-foreground"
               }`}
             />
-            <span className="text-[10px] font-medium text-neutral-400 uppercase tracking-widest">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">
               {state === "listening"
                 ? "Listening"
                 : state === "speaking"
@@ -350,7 +378,7 @@ function AgentTile({
 }
 
 // ─────────────────────────────────────────────────────────
-// 4. LIVE TRANSCRIPT PANEL (sidebar)
+// 4. LIVE TRANSCRIPT PANEL (sidebar) - Theme Aware
 // ─────────────────────────────────────────────────────────
 function TranscriptPanel({
   lines,
@@ -381,7 +409,7 @@ function TranscriptPanel({
 
   if (merged.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-neutral-500 gap-2">
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
         <MessageSquareText size={24} className="opacity-50" />
         <p className="text-xs">Transcript will appear here</p>
       </div>
@@ -389,19 +417,19 @@ function TranscriptPanel({
   }
 
   return (
-    <div className="flex flex-col gap-3 overflow-y-auto h-full pr-1 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
+    <div className="flex flex-col gap-3 overflow-y-auto h-full pr-1">
       {merged.map((line, i) => {
         const isAgent = line.role === "assistant";
         return (
           <div key={i} className="flex flex-col gap-0.5">
             <span
               className={`text-[10px] font-semibold uppercase tracking-wider ${
-                isAgent ? "text-indigo-400" : "text-emerald-400"
+                isAgent ? "text-primary" : "text-green-600 dark:text-green-400"
               }`}
             >
               {isAgent ? agentName : line.speaker}
             </span>
-            <p className="text-xs text-neutral-300 leading-relaxed">
+            <p className="text-xs text-foreground/80 leading-relaxed">
               {line.text}
             </p>
           </div>
@@ -413,7 +441,7 @@ function TranscriptPanel({
 }
 
 // ─────────────────────────────────────────────────────────
-// 5. ELAPSED TIMER
+// 5. ELAPSED TIMER - Theme Aware
 // ─────────────────────────────────────────────────────────
 function ElapsedTimer() {
   const [seconds, setSeconds] = useState(0);
@@ -427,7 +455,7 @@ function ElapsedTimer() {
   const ss = String(seconds % 60).padStart(2, "0");
 
   return (
-    <span className="text-xs tabular-nums text-neutral-400 font-mono">
+    <span className="text-xs tabular-nums text-muted-foreground font-mono">
       {mm}:{ss}
     </span>
   );
@@ -529,30 +557,30 @@ export function CallActive({ meetingName, meetingId: _meetingId }: CallActivePro
   }
 
   return (
-    <div className="flex h-screen w-full bg-neutral-950 text-white font-sans overflow-hidden">
+    <div className="flex h-screen w-full bg-background text-foreground font-sans overflow-hidden transition-colors">
       {/* Transcript receiver is now handled by useTranscriptReceiver hook */}
       <RoomAudioRenderer />
 
       {/* MAIN AREA */}
       <div className="flex flex-1 flex-col min-w-0">
-        {/* HEADER BAR */}
-        <header className="flex h-14 items-center justify-between px-5 border-b border-white/5 bg-neutral-950/80 backdrop-blur-md z-20 shrink-0">
+        {/* HEADER BAR - Google Meet Style */}
+        <header className="flex h-14 items-center justify-between px-4 md:px-6 border-b border-border bg-background/80 backdrop-blur-md z-20 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-lg bg-neutral-900/60 px-3 py-1.5 border border-white/5">
+            <div className="flex items-center gap-2 rounded-lg bg-card px-3 py-1.5 border border-border">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
               </span>
-              <span className="text-sm font-medium text-neutral-200 truncate max-w-[200px]">
+              <span className="text-sm font-medium text-foreground truncate max-w-[200px]">
                 {meetingName}
               </span>
             </div>
-            <div className="hidden sm:flex items-center gap-3 text-neutral-500">
+            <div className="hidden sm:flex items-center gap-3 text-muted-foreground">
               <div className="flex items-center gap-1.5">
                 <Clock size={12} />
                 <ElapsedTimer />
               </div>
-              <div className="h-3 w-px bg-white/10" />
+              <div className="h-3 w-px bg-border" />
               <div className="flex items-center gap-1.5">
                 <Users size={12} />
                 <span className="text-xs">{humanCount}</span>
@@ -565,33 +593,22 @@ export function CallActive({ meetingName, meetingId: _meetingId }: CallActivePro
             onClick={() => setShowTranscript(!showTranscript)}
             className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
               showTranscript
-                ? "bg-indigo-600 text-white"
-                : "bg-neutral-900/60 text-neutral-400 hover:text-white border border-white/5"
+                ? "bg-primary text-primary-foreground"
+                : "bg-card text-muted-foreground hover:text-foreground border border-border"
             }`}
           >
             <MessageSquareText size={14} />
             <span className="hidden sm:inline">Transcript</span>
-            {transcriptLines.length > 0 && (
-              <span
-                className={`flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full text-[10px] font-bold ${
-                  showTranscript
-                    ? "bg-white/20 text-white"
-                    : "bg-indigo-500/20 text-indigo-400"
-                }`}
-              >
-                {transcriptLines.length}
-              </span>
-            )}
           </button>
         </header>
 
-        {/* VIDEO GRID */}
-        <main className="flex-1 p-3 pb-24 flex items-center justify-center overflow-hidden">
+        {/* VIDEO GRID - Centered Google Meet Style */}
+        <main className="flex-1 p-3 md:p-4 pb-28 flex items-center justify-center overflow-hidden bg-muted/30">
           <div
-            className={`grid ${gridClass} gap-3 w-full h-full max-w-6xl auto-rows-fr`}
+            className={`grid ${gridClass} gap-3 md:gap-4 w-full h-full max-w-6xl auto-rows-fr`}
           >
             {/* Agent tile */}
-            <div className="h-full min-h-[240px]">
+            <div className="h-full min-h-[200px] md:min-h-[280px]">
               <AgentTile
                 state={state}
                 audioTrack={audioTrack}
@@ -601,7 +618,7 @@ export function CallActive({ meetingName, meetingId: _meetingId }: CallActivePro
 
             {/* Participant tiles */}
             {tracks.map((track) => (
-              <div key={track.publication.trackSid} className="h-full min-h-[240px]">
+              <div key={track.publication.trackSid} className="h-full min-h-[200px] md:min-h-[280px]">
                 <ParticipantTile
                   participant={track.participant}
                   trackRef={track}
@@ -612,62 +629,62 @@ export function CallActive({ meetingName, meetingId: _meetingId }: CallActivePro
 
             {/* Fallback local tile when camera off */}
             {!tracks.find((t) => t.participant === localParticipant) && (
-              <div className="h-full min-h-[240px]">
+              <div className="h-full min-h-[200px] md:min-h-[280px]">
                 <ParticipantTile participant={localParticipant} isLocal />
               </div>
             )}
           </div>
         </main>
 
-        {/* BOTTOM CONTROLS */}
+        {/* BOTTOM CONTROLS - Floating Google Meet Style */}
         <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50">
-          <div className="flex items-center gap-2 rounded-2xl bg-neutral-900/90 p-2.5 shadow-2xl backdrop-blur-xl border border-white/10">
+          <div className="flex items-center gap-2 rounded-full bg-card/95 p-2 md:p-2.5 shadow-2xl backdrop-blur-xl border border-border">
             <button
               onClick={toggleMic}
-              className={`p-3.5 rounded-xl transition-all duration-200 ${
+              className={`p-3 md:p-3.5 rounded-full transition-all duration-200 ${
                 isMicOn
-                  ? "bg-neutral-800 hover:bg-neutral-700 text-white"
-                  : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                  ? "bg-muted hover:bg-muted/80 text-foreground"
+                  : "bg-destructive text-destructive-foreground hover:bg-destructive/90"
               }`}
-              title="Toggle Microphone"
+              title={isMicOn ? "Turn off microphone" : "Turn on microphone"}
             >
-              {isMicOn ? <Mic size={18} /> : <MicOff size={18} />}
+              {isMicOn ? <Mic size={20} /> : <MicOff size={20} />}
             </button>
 
             <button
               onClick={toggleCamera}
-              className={`p-3.5 rounded-xl transition-all duration-200 ${
+              className={`p-3 md:p-3.5 rounded-full transition-all duration-200 ${
                 isCameraOn
-                  ? "bg-neutral-800 hover:bg-neutral-700 text-white"
-                  : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                  ? "bg-muted hover:bg-muted/80 text-foreground"
+                  : "bg-destructive text-destructive-foreground hover:bg-destructive/90"
               }`}
-              title="Toggle Camera"
+              title={isCameraOn ? "Turn off camera" : "Turn on camera"}
             >
-              {isCameraOn ? <Video size={18} /> : <VideoOff size={18} />}
+              {isCameraOn ? <Video size={20} /> : <VideoOff size={20} />}
             </button>
 
-            <div className="h-8 w-px bg-white/10" />
+            <div className="h-8 w-px bg-border" />
 
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 [&_button]:rounded-full [&_button]:bg-muted [&_button]:p-3 [&_button]:text-foreground hover:[&_button]:bg-muted/80">
               <VoiceAssistantControlBar controls={{ leave: false }} />
             </div>
 
-            <div className="h-8 w-px bg-white/10" />
+            <div className="h-8 w-px bg-border" />
 
             <button
               onClick={handleLeave}
               disabled={leaving}
-              className={`p-3.5 rounded-xl transition-all duration-200 ${
+              className={`p-3 md:p-3.5 rounded-full transition-all duration-200 ${
                 leaving
-                  ? "bg-red-900/50 text-red-300 cursor-wait"
-                  : "bg-red-600 hover:bg-red-500 text-white"
+                  ? "bg-destructive/50 text-destructive-foreground/70 cursor-wait"
+                  : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
               }`}
-              title="Leave Call"
+              title="Leave call"
             >
               {leaving ? (
-                <div className="h-[18px] w-[18px] border-2 border-red-300 border-t-transparent rounded-full animate-spin" />
+                <div className="h-5 w-5 border-2 border-destructive-foreground border-t-transparent rounded-full animate-spin" />
               ) : (
-                <PhoneOff size={18} />
+                <PhoneOff size={20} />
               )}
             </button>
           </div>
@@ -676,22 +693,22 @@ export function CallActive({ meetingName, meetingId: _meetingId }: CallActivePro
 
       {/* TRANSCRIPT SIDEBAR — slides in from right */}
       <div
-        className={`border-l border-white/5 bg-neutral-950 transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${
+        className={`border-l border-border bg-background transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${
           showTranscript ? "w-80" : "w-0"
         }`}
       >
         {showTranscript && (
           <div className="flex flex-col h-full w-80">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 shrink-0">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
               <div className="flex items-center gap-2">
-                <MessageSquareText size={14} className="text-indigo-400" />
-                <span className="text-sm font-semibold text-neutral-200">
+                <MessageSquareText size={14} className="text-primary" />
+                <span className="text-sm font-semibold text-foreground">
                   Live Transcript
                 </span>
               </div>
               <button
                 onClick={() => setShowTranscript(false)}
-                className="p-1 rounded-md hover:bg-neutral-800 text-neutral-500 hover:text-white transition-colors"
+                className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X size={14} />
               </button>
