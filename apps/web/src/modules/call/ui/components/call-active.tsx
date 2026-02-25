@@ -155,11 +155,33 @@ function useTranscriptReceiver(
     };
 
     // Register for LiveKit native transcription streams (only once)
-    // @ts-expect-error - registerTextStreamHandler is available in newer SDK versions
-    if (room.registerTextStreamHandler && !handlerRegistered.current) {
+    const textStreamApi = room as unknown as {
+      registerTextStreamHandler?: (
+        topic: string,
+        handler: (reader: unknown, participantOrIdentity: unknown) => void
+      ) => void;
+      unregisterTextStreamHandler?: (topic: string) => void;
+    };
+
+    // Adapter keeps type-narrowed handler while matching the relaxed API shape
+    const textStreamHandler = (
+      reader: unknown,
+      participantOrIdentity: unknown
+    ) =>
+      handleTextStream(
+        reader as {
+          info: { attributes: Record<string, string>; topic: string };
+          readAll: () => Promise<string>;
+        },
+        participantOrIdentity as string | Participant
+      );
+
+    if (textStreamApi.registerTextStreamHandler && !handlerRegistered.current) {
       try {
-        // @ts-expect-error - registerTextStreamHandler may not be in type definitions
-        room.registerTextStreamHandler("lk.transcription", handleTextStream);
+        textStreamApi.registerTextStreamHandler(
+          "lk.transcription",
+          textStreamHandler
+        );
         handlerRegistered.current = true;
       } catch (e) {
         // Handler may already be registered (e.g., from StrictMode double-invoke)
@@ -170,11 +192,12 @@ function useTranscriptReceiver(
     return () => {
       room.off(RoomEvent.DataReceived, handleDataReceived);
       // Unregister the text stream handler on cleanup
-      // @ts-expect-error - unregisterTextStreamHandler may not be in type definitions
-      if (room.unregisterTextStreamHandler && handlerRegistered.current) {
+      if (
+        textStreamApi.unregisterTextStreamHandler &&
+        handlerRegistered.current
+      ) {
         try {
-          // @ts-expect-error - unregisterTextStreamHandler may not be in type definitions
-          room.unregisterTextStreamHandler("lk.transcription");
+          textStreamApi.unregisterTextStreamHandler("lk.transcription");
           handlerRegistered.current = false;
         } catch (e) {
           // Ignore cleanup errors
