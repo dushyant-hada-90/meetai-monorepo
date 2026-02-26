@@ -9,7 +9,8 @@
   ],
   "devDependencies": {
     "turbo": "latest",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "napi-postinstall": "^0.3.4"
   },
   "optionalDependencies": {
     "lightningcss-linux-x64-gnu": "1.31.1",
