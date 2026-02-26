@@ -23,6 +23,7 @@ import {
   Participant,
   LocalAudioTrack,
   RemoteAudioTrack,
+  RpcInvocationData,
 } from "livekit-client";
 import {
   useEffect,
@@ -31,6 +32,11 @@ import {
   useRef,
   useCallback,
 } from "react";
+import {
+  ToolApprovalDialog,
+  ToolApprovalRequest,
+  ToolApprovalResponse,
+} from "./tool-approval-dialog";
 import {
   Video,
   VideoOff,
@@ -58,6 +64,14 @@ interface TranscriptLine {
   index?: number;
   segmentId?: string;
   isFinal?: boolean;
+}
+
+// ─────────────────────────────────────────────────────────
+// PENDING APPROVAL STATE (for RPC tool calls)
+// ─────────────────────────────────────────────────────────
+interface PendingApproval {
+  request: ToolApprovalRequest;
+  resolve: (response: ToolApprovalResponse) => void;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -205,6 +219,78 @@ function useTranscriptReceiver(
       }
     };
   }, [room, onTranscriptLine]);
+}
+
+// ─────────────────────────────────────────────────────────
+// 1b. TOOL APPROVAL RPC HANDLER
+//     Registers an RPC method to receive tool call requests
+//     from the agent and show approval UI to the user.
+// ─────────────────────────────────────────────────────────
+function useToolApprovalRpc(
+  onApprovalRequest: (request: ToolApprovalRequest) => Promise<ToolApprovalResponse>
+) {
+  const room = useRoomContext();
+  const { localParticipant } = useLocalParticipant();
+  // Keep the callback in a ref so the handler always uses the latest version
+  // without needing to unregister/re-register when the callback identity changes.
+  const callbackRef = useRef(onApprovalRequest);
+  callbackRef.current = onApprovalRequest;
+
+  useEffect(() => {
+    if (!room) return;
+
+    // registerRpcMethod registers a PERSISTENT handler — it fires for every
+    // invocation, just like room.on(event, handler). Never re-register from
+    // inside the handler; doing so creates a gap where no handler is registered
+    // and causes the second tool call to be auto-rejected (error 1400).
+    const handleApproveCalendarEvent = async (
+      data: RpcInvocationData
+    ): Promise<string> => {
+      console.log("📩 RPC INVOKED", {
+        caller: data.callerIdentity,
+        timestamp: Date.now(),
+        rawPayload: data.payload,
+      });
+      try {
+        const request: ToolApprovalRequest = JSON.parse(data.payload);
+        console.log("📥 Parsed payload", { request });
+        const response = await callbackRef.current(request);
+        const beforeResponseTs = Date.now();
+        console.log("⏳ Before returning response", { beforeResponseTs });
+        console.log("📤 Final response object", { response });
+        return JSON.stringify(response);
+      } catch (e) {
+        console.error("❌ Failed to process approval request:", e);
+        const errorResp: ToolApprovalResponse = {
+          approved: false,
+          reason: "Failed to process request",
+        };
+        console.log("📤 Sending error response", { errorResp });
+        return JSON.stringify(errorResp);
+      }
+    };
+
+    // Unregister first to be safe against React Strict Mode double-invocation.
+    try { room.unregisterRpcMethod("approveCalendarEvent"); } catch (_) {}
+    room.registerRpcMethod("approveCalendarEvent", handleApproveCalendarEvent);
+    console.log("✅ RPC handler registered for approveCalendarEvent", {
+      localIdentity: localParticipant?.identity,
+    });
+
+    // Re-register after reconnection so the handler survives network drops.
+    const handleReconnected = () => {
+      console.log("🔄 Room reconnected, re-registering RPC handler");
+      try { room.unregisterRpcMethod("approveCalendarEvent"); } catch (_) {}
+      room.registerRpcMethod("approveCalendarEvent", handleApproveCalendarEvent);
+    };
+
+    room.on(RoomEvent.Reconnected, handleReconnected);
+
+    return () => {
+      room.off(RoomEvent.Reconnected, handleReconnected);
+      try { room.unregisterRpcMethod("approveCalendarEvent"); } catch (_) {}
+    };
+  }, [room, localParticipant]);
 }
 
 // ─────────────────────────────────────────────────────────
@@ -501,6 +587,25 @@ export function CallActive({ meetingName, meetingId: _meetingId }: CallActivePro
   const connectionState = useConnectionState();
   const remoteParticipants = useRemoteParticipants();
 
+  // ----- lifecycle logging -----
+  useEffect(() => {
+    console.log("🏁 CallActive mounted");
+    return () => {
+      console.log("🛑 CallActive unmounted");
+    };
+  }, []);
+
+  // log connection state changes
+  useEffect(() => {
+    console.log("🔌 connectionState changed", { connectionState });
+  }, [connectionState]);
+
+  // log roster of remote participants whenever it changes
+  useEffect(() => {
+    const list = remoteParticipants.map((p) => ({ identity: p.identity, kind: p.kind }));
+    console.log("👥 remoteParticipants updated", { list });
+  }, [remoteParticipants]);
+
   const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare], {
     onlySubscribed: true,
   });
@@ -512,6 +617,9 @@ export function CallActive({ meetingName, meetingId: _meetingId }: CallActivePro
   const [transcriptLines, setTranscriptLines] = useState<TranscriptLine[]>([]);
   const [leaving, setLeaving] = useState(false);
   const [callStartTime] = useState(Date.now());
+  
+  // Tool approval state for RPC-based human-in-the-loop
+  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
 
   // Use the transcript receiver hook (display only - storage is handled by agent)
   const handleTranscriptLine = useCallback((line: TranscriptLine) => {
@@ -526,6 +634,37 @@ export function CallActive({ meetingName, meetingId: _meetingId }: CallActivePro
   }, []);
 
   useTranscriptReceiver(handleTranscriptLine);
+
+  // Handler for tool approval RPC requests from agent
+  const handleApprovalRequest = useCallback(
+    (request: ToolApprovalRequest): Promise<ToolApprovalResponse> => {
+      console.log("🛎️ handleApprovalRequest called", { request });
+      return new Promise((resolve) => {
+        // Store the request and resolver so the dialog can respond
+        setPendingApproval({ request, resolve });
+        console.log("🛎️ pendingApproval set for request", { request });
+      });
+    },
+    []
+  );
+
+  // log when pendingApproval state changes (for debugging)
+  useEffect(() => {
+    console.log("📝 pendingApproval changed", { pendingApproval });
+  }, [pendingApproval]);
+
+  // Handle user's response to the approval dialog
+  const handleApprovalResponse = useCallback((response: ToolApprovalResponse) => {
+    console.log("🔔 handleApprovalResponse invoked", { response });
+    if (pendingApproval) {
+      pendingApproval.resolve(response);
+      setPendingApproval(null);
+      console.log("🔔 pendingApproval cleared after response");
+    }
+  }, [pendingApproval]);
+
+  // Register RPC handler for tool approvals
+  useToolApprovalRpc(handleApprovalRequest);
 
   useEffect(() => {
     setIsCameraOn(localParticipant.isCameraEnabled);
@@ -583,6 +722,12 @@ export function CallActive({ meetingName, meetingId: _meetingId }: CallActivePro
     <div className="flex h-screen w-full bg-background text-foreground font-sans overflow-hidden transition-colors">
       {/* Transcript receiver is now handled by useTranscriptReceiver hook */}
       <RoomAudioRenderer />
+
+      {/* Tool Approval Dialog - shows when agent requests human approval */}
+      <ToolApprovalDialog
+        request={pendingApproval?.request ?? null}
+        onRespond={handleApprovalResponse}
+      />
 
       {/* MAIN AREA */}
       <div className="flex flex-1 flex-col min-w-0">

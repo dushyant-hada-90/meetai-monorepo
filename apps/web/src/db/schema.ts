@@ -82,7 +82,8 @@ export const meetingStatus = pgEnum("meeting_status", [
   "active",
   "completed",
   "processing",
-  "cancelled"
+  "cancelled",
+  "abandoned",
 ]);
 
 export const participantRole = pgEnum("participant_role", [
@@ -177,9 +178,38 @@ export const meetingInvites = pgTable("meeting_invites", {
   meetingRoleIndex: index("meeting_role_idx").on(t.meetingId, t.role)
 }));
 
+export const sessionStatus = pgEnum("session_status", [
+  "active",
+  "completed",
+  "abandoned",
+  "processing"
+]);
 
+export const meetingSessions = pgTable("meeting_sessions", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+
+  meetingId: text("meeting_id")
+    .notNull()
+    .references(() => meetings.id, { onDelete: "cascade" }),
+
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+
+  durationSeconds: text("duration_seconds"),
+
+  status: sessionStatus("status").notNull().default("active"),
+
+  transcript: jsonb("transcript")
+    .$type<TranscriptItem[]>()
+    .notNull()
+    .default([]),
+
+  summary: text("summary"),
+
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
 // -------------------------
-// Tol calling
+// Tool calling
 // ------------------------
 export const actionStatus = pgEnum("action_status", [
   "proposed",      // LLM detected

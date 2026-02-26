@@ -65,39 +65,40 @@ export const CallLobby = ({ onJoin }: Props) => {
 
     let audioContext: AudioContext | null = null
     let microphone: MediaStreamAudioSourceNode | null = null
-    let scriptProcessor: ScriptProcessorNode | null = null
     let analyser: AnalyserNode | null = null
+    let animFrameId: number | null = null
 
     try {
       audioContext = new AudioContext()
       audioContextRef.current = audioContext
       analyser = audioContext.createAnalyser()
       microphone = audioContext.createMediaStreamSource(stream)
-      scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1)
 
       analyser.smoothingTimeConstant = 0.8
       analyser.fftSize = 1024
 
       microphone.connect(analyser)
-      analyser.connect(scriptProcessor)
-      scriptProcessor.connect(audioContext.destination)
 
-      scriptProcessor.onaudioprocess = () => {
+      const updateLevel = () => {
         if (!analyser) return
         const array = new Uint8Array(analyser.frequencyBinCount)
         analyser.getByteFrequencyData(array)
         const values = array.reduce((a, b) => a + b, 0)
         const average = values / array.length
         setAudioLevel(Math.min(100, average * 2))
+        animFrameId = requestAnimationFrame(updateLevel)
       }
+
+      animFrameId = requestAnimationFrame(updateLevel)
     } catch (err) {
       console.error('Error setting up audio visualizer:', err)
     }
 
     return () => {
       try {
+        if (animFrameId !== null) cancelAnimationFrame(animFrameId)
         if (microphone) microphone.disconnect()
-        if (scriptProcessor) scriptProcessor.disconnect()
+        if (analyser) analyser.disconnect()
         if (audioContext && audioContext.state !== 'closed') {
           audioContext.close()
         }
