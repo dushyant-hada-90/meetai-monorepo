@@ -310,6 +310,16 @@ export default defineAgent({
         - When multiple people are in the meeting, address them by name.
         - Introduce yourself as "${currentAgent.name}" if asked who you are.
         - If a participant states a factually incorrect claim, briefly and politely correct it with one concise sentence and, if helpful, a short rationale.
+
+        Calendar Tool Rules (strictly follow these):
+        - When someone asks you to schedule, add, or create a calendar event, call the create_calendar_event tool IMMEDIATELY — do not ask the user for confirmation first, and do not ask who the target participant is.
+        - Determine the target participant from context: who made the request, who was assigned the task, or who was mentioned. If there is only one other human, target them automatically.
+        - Each tool call is INDEPENDENT. Results are scoped by callId and participant. Never treat a previous approval as covering a different event.
+        - If the user requests multiple events, call the tool once per event. Each fires independently.
+        - The tool ALWAYS returns { status: "pending" } immediately — this means the approval dialog is now open on the participant's screen. This is NOT a failure.
+        - When the participant approves or rejects, you will receive a spoken instruction containing "CALENDAR_APPROVAL_RESULT [callId:XYZ]:". That carries the real decision.
+        - Until you hear that instruction, simply acknowledge the pending state in one sentence and remain conversational.
+        - When you hear the APPROVED/REJECTED result, announce it to the meeting in one sentence then move on.
         Multi-Speaker Awareness:
         - This is a multi-participant meeting. Multiple humans may take turns speaking.
         - You will receive context about who is currently speaking via system updates.
@@ -341,9 +351,16 @@ export default defineAgent({
       //      with Gemini realtime (no manual generateReply on speech stop)
       // ─────────────────────────────────────────────────────
       
+      // ✅ Session is created FIRST so it can be passed into buildCalendarTool.
+      //    The tool uses session.generateReply() to inject approval results back
+      //    into the LLM turn without blocking audio generation.
+      const session = new voice.AgentSession({
+        llm: realtimeModel,
+      });
+
       // ✅ CHANGED: Set backend URL and build the tool dynamically
       const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      const calendarTool = buildCalendarTool(backendUrl, currentMeeting.id, currentAgent.id);
+      const calendarTool = buildCalendarTool(backendUrl, currentMeeting.id, currentAgent.id, session);
 
       // ─────────────────────────────────────────────────────
       // 5b. TRANSCRIPT STORAGE SERVICE (Agent-side direct storage)
@@ -360,10 +377,6 @@ export default defineAgent({
       // ✅ CHANGED: Pass the configured tool map into the Agent
       const agent = new MeetingAgent(currentAgent.name, systemPrompt, {
         create_calendar_event: calendarTool,
-      });
-
-      const session = new voice.AgentSession({
-        llm: realtimeModel,
       });
 
       // Transcript sequence counter for ordered delivery

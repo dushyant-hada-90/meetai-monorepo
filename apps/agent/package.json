@@ -3,7 +3,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/agent.ts dev",
-    "livekit-agent": "tsx src/agent.ts dev",
+    "lk-agent": "tsx src/agent.ts dev",
     "build": "tsc",
     "start": "node dist/agent.js start",
     "download-files": "node dist/agent.js download-files"
@@ -14,7 +14,8 @@
     "@livekit/agents": "^1.0.42",
     "@livekit/agents-plugin-google": "^1.0.42",
     "@livekit/rtc-node": "^0.13.24",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "22.19.7",
