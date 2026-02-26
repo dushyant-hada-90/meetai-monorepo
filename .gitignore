@@ -2,3 +2,8 @@ node_modules/
 .turbo/
 .env
 .env.local
+
+# Legacy root-level folders (to be deleted after closing VS Code)
+meetai/
+meetai-docs/
+meetai-agent/
