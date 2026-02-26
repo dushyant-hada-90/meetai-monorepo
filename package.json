@@ -1,8 +1,10 @@
 {
   "name": "meetai-monorepo",
   "private": true,
+  "packageManager": "npm@11.4.2",
   "workspaces": [
-    "apps/*",
+    "apps/web",
+    "apps/docs",
     "packages/*"
   ],
   "devDependencies": {
