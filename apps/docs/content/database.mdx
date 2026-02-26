@@ -1,0 +1,61 @@
+# Database Schema
+
+import { Callout } from 'nextra/components'
+
+<Callout type="info">
+  MeetAI uses **Neon DB** (serverless Postgres) with **Drizzle ORM** for type-safe schema definitions and queries. The connection uses `@neondatabase/serverless` Pool driver with full transaction support.
+</Callout>
+
+## Entity Relationship Diagram
+
+![MeetAI Database Schema — generated with Eraser.io](/db_eraserio.svg)
+
+## Enums
+
+| Enum | Values | Purpose |
+| --- | --- | --- |
+| `meeting_status` | `upcoming`, `active`, `completed`, `processing`, `cancelled`, `abandoned` | Tracks meeting lifecycle |
+| `participant_role` | `host`, `co_host`, `attendee`, `viewer` | Role-based access within a meeting |
+| `session_status` | `active`, `completed`, `abandoned`, `processing` | Individual call session state |
+| `action_status` | `proposed`, `pending`, `confirmed`, `rejected`, `executing`, `completed`, `failed` | Human-in-the-loop action lifecycle |
+| `action_type` | `send_email`, `create_calendar_event`, `create_jira_ticket`, `create_github_issue`, `post_slack_message` | Supported AI-triggered actions |
+
+## Key Design Decisions
+
+### Transcript stored as JSONB array
+
+```typescript
+export interface TranscriptItem {
+  role: "human" | "assistant";
+  speaker: AgentId | UserId | "unknownUser";
+  text: string;
+  timestamp: number;  // epoch ms
+}
+```
+
+<Callout type="warning">
+  **Why JSONB, not a separate `transcript_lines` table?**
+  Transcripts are always read and written as a batch per meeting. A JSONB column avoids `N+1` query problems, simplifies upserts (array concat via `jsonb_set`), and keeps the data co-located with the meeting row for fast reads. The trade-off is losing per-line indexing — acceptable because we never query individual transcript lines independently.
+</Callout>
+
+### Composite Primary Key on `meeting_participants`
+
+The `(meetingId, userId)` composite PK enforces that a user can only appear once per meeting — no duplicate joins. This eliminates an entire class of race conditions during invite acceptance.
+
+### `nanoid()` for Primary Keys
+
+All application tables use `nanoid()` string IDs instead of auto-incrementing integers. This enables:
+- Client-side ID generation (optimistic UI)
+- URL-safe tokens (invite links use the row ID directly)
+- No sequential ID enumeration attacks
+
+### Indexes on `meeting_actions`
+
+```sql
+CREATE INDEX meeting_actions_meeting_idx ON meeting_actions(meeting_id);
+CREATE INDEX meeting_actions_status_idx ON meeting_actions(status);
+```
+
+These cover the two most frequent query patterns:
+1. "Show all actions for this meeting" (dashboard view)
+2. "Find all pending actions" (background executor)

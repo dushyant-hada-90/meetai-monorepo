@@ -1,0 +1,167 @@
+# System Architecture
+
+import { Callout } from 'nextra/components'
+
+<Callout type="info">
+  This page maps out the full request lifecycle in MeetAI — from a user clicking "Start Meeting" to receiving an AI-generated summary in their dashboard.
+</Callout>
+
+## High-Level Architecture
+
+```mermaid
+%%{init: {'flowchart': {'curve': 'linear'}}}%%
+flowchart TB
+    subgraph Browser
+        UI["Next.js App Router UI"]
+        LK_SDK[LiveKit Client SDK]
+    end
+
+    subgraph NextJs Server
+        API[tRPC API Layer]
+        Auth[Better Auth Middleware]
+        Webhook[Webhook Handler]
+        AgentTranscript[Transcript API]
+    end
+
+    subgraph LiveKit Cloud
+        SFU[Selective Forwarding Unit]
+        AgentRuntime[Agent Framework Runtime]
+    end
+
+    subgraph MeetAI Agent
+        VoiceAgent[Voice Pipeline Agent]
+        STT_TTS[Gemini Multimodal Live]
+        Tools[Tool Calling - Calendar RPC]
+        TranscriptSvc[Transcript Storage Service]
+    end
+
+    subgraph Serverless Backend
+        NeonDB[(Neon Postgres)]
+        Inngest[Inngest Event Bus]
+        Gemini["Gemini 2.5 Flash"]
+    end
+
+    subgraph Payments
+        Polar["Polar.sh Subscriptions"]
+    end
+
+    UI -->|"tRPC (HTTP)"| API
+    API -->|Drizzle ORM| NeonDB
+    Auth -->|Session cookie| UI
+
+    UI -->|"Join room (WebRTC)"| LK_SDK
+    LK_SDK <-->|"Audio/Video/Data"| SFU
+    SFU <-->|"Agent track"| AgentRuntime
+    AgentRuntime --> VoiceAgent
+
+    VoiceAgent --> STT_TTS
+    VoiceAgent --> Tools
+    VoiceAgent --> TranscriptSvc
+    TranscriptSvc -->|"POST /api/agent-transcript"| AgentTranscript
+    AgentTranscript -->|Batch upsert| NeonDB
+
+    Tools -->|"RPC to participant"| SFU
+
+    SFU -->|"room_finished webhook"| Webhook
+    Webhook -->|"inngest.send()"| Inngest
+    Inngest -->|Step 1: Mark processing| NeonDB
+    Inngest -->|Step 2: Resolve speakers| NeonDB
+    Inngest -->|Step 3: Summarize| Gemini
+    Inngest -->|Step 4: Save summary| NeonDB
+
+    Polar -->|"Subscription status"| Auth
+```
+
+## Request Lifecycle
+
+### 1. Meeting Creation
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant T as tRPC Router
+    participant DB as Neon DB
+    participant LK as LiveKit Server SDK
+
+    U->>T: createMeeting({ name, agentId })
+    T->>DB: INSERT into meetings
+    DB-->>T: meeting record
+    T-->>U: { meetingId }
+
+    Note over U: User clicks "Join"
+    U->>T: generateToken(meetingId, userId)
+    T->>DB: SELECT agent instructions + meeting data
+    T->>LK: Create Room + Set Metadata (JSON)
+    LK-->>T: Room ready
+    T->>LK: Generate AccessToken with grants
+    LK-->>T: JWT Token
+    T-->>U: { token, wsUrl }
+```
+
+### 2. Live Meeting — Audio & Transcript Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User Browser
+    participant SFU as LiveKit SFU
+    participant Agent as AI Agent
+    participant Backend as Next.js Backend
+    participant DB as Neon DB
+
+    U->>SFU: Publish audio track (WebRTC)
+    SFU->>Agent: Forward audio frames
+
+    Agent->>Agent: Gemini Multimodal Live (STT → LLM → TTS)
+    Agent->>SFU: Publish agent audio response
+    SFU->>U: Forward agent audio (WebRTC)
+
+    Agent->>Agent: ConversationItemAdded event
+    Agent->>Agent: Buffer transcript lines (3s / 10 lines)
+    Agent->>Backend: POST /api/agent-transcript (batch)
+    Backend->>DB: JSONB array_concat upsert
+    Agent->>SFU: publishData (transcript_update, reliable)
+    SFU->>U: DataChannel → render live caption
+```
+
+### 3. Post-Meeting Processing
+
+```mermaid
+sequenceDiagram
+    participant LK as LiveKit
+    participant WH as Webhook Handler
+    participant IG as Inngest
+    participant DB as Neon DB
+    participant AI as Gemini 2.5 Flash
+
+    LK->>WH: room_finished webhook (POST)
+    WH->>WH: Verify LiveKit signature
+    WH->>IG: inngest.send("livekit/room_finished")
+
+    IG->>DB: Step 1 — UPDATE status = 'processing'
+    IG->>DB: Step 2 — SELECT user names + agent names
+    IG->>IG: Merge consecutive speaker fragments
+    IG->>IG: Format: "[MM:SS] Speaker: text"
+    IG->>AI: Step 3 — Summarize formatted transcript
+    AI-->>IG: Markdown summary
+    IG->>DB: Step 4 — UPDATE summary, status = 'completed'
+```
+
+## Component Responsibilities
+
+| Component | Role | Key Files |
+| --- | --- | --- |
+| **Next.js App Router** | SSR, API routes, tRPC server | `src/app/`, `src/trpc/` |
+| **tRPC** | Typesafe API layer for all CRUD | `src/trpc/routers/` |
+| **Better Auth** | OAuth + email auth, session mgmt | `src/lib/auth.ts`, `src/middleware.ts` |
+| **LiveKit Server SDK** | Room creation, token generation | `src/lib/stream-video.ts` |
+| **LiveKit Agent** | Voice AI pipeline, tool calling | `meetai-agent/src/agent.ts` |
+| **Inngest** | Event-driven post-meeting processing | `src/inngest/functions.ts` |
+| **Drizzle ORM** | Typesafe DB queries over Neon | `src/db/schema.ts`, `src/db/index.ts` |
+| **Polar.sh** | Subscription billing, premium gating | `src/lib/polar.ts` |
+
+## Data Flow Summary
+
+1. **Write path**: Agent → HTTP POST → Next.js API → Drizzle → Neon (transcript lines batched every 3s)
+2. **Read path**: Dashboard → tRPC → Drizzle → Neon → React Server Components
+3. **Real-time path**: Agent → LiveKit Data Channel → Browser (live captions, no DB round-trip)
+4. **Async path**: LiveKit webhook → Inngest event → Durable function steps → Gemini → Neon

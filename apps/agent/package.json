@@ -1,5 +1,5 @@
 {
-  "name": "meetai-agent",
+  "name": "agent",
   "type": "module",
   "scripts": {
     "dev": "tsx src/agent.ts dev",
