@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "tsx src/agent.ts dev",
     "lk-agent": "tsx src/agent.ts dev",
-    "build": "tsc",
+    "build": "tsc -p tsconfig.json",
     "start": "node dist/agent.js start",
     "download-files": "node dist/agent.js download-files"
   },

@@ -19,7 +19,7 @@ import { z } from "zod";
  * 5. Agent owns transcript lifecycle from generation to storage
  */
 
-const AGENT_SECRET = process.env.AGENT_TRANSCRIPT_SECRET || process.env.LIVEKIT_API_SECRET;
+const AGENT_SECRET = process.env.LIVEKIT_API_SECRET;
 
 const bodySchema = z.object({
   meetingId: z.string(),

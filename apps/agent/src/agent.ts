@@ -359,14 +359,14 @@ export default defineAgent({
       });
 
       // ✅ CHANGED: Set backend URL and build the tool dynamically
-      const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const backendUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
       const calendarTool = buildCalendarTool(backendUrl, currentMeeting.id, currentAgent.id, session);
 
       // ─────────────────────────────────────────────────────
       // 5b. TRANSCRIPT STORAGE SERVICE (Agent-side direct storage)
       //     This eliminates the unreliable client-side "scribe" pattern
       // ─────────────────────────────────────────────────────
-      const agentSecret = process.env.LIVEKIT_API_SECRET || "";
+      const agentSecret = process.env.LIVEKIT_API_SECRET!;
       const transcriptStorage = new TranscriptStorageService(
         currentMeeting.id,
         backendUrl,
