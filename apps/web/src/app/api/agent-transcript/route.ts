@@ -22,7 +22,7 @@ import { z } from "zod";
 
 const bodySchema = z.object({
   meetingId: z.string(),
-  agentSecret: z.string(),
+  LIVEKIT_API_SECRET: z.string(),
   lines: z.array(
     z.object({
       role: z.enum(["human", "assistant"]),
@@ -45,11 +45,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid body" }, { status: 400 });
     }
 
-    const { meetingId, agentSecret, lines } = parsed.data;
-    const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
+    const { meetingId, LIVEKIT_API_SECRET, lines } = parsed.data;
 
     // 2. Verify agent secret
-    if (!LIVEKIT_API_SECRET || agentSecret !== LIVEKIT_API_SECRET) {
+    if (!LIVEKIT_API_SECRET || LIVEKIT_API_SECRET !== process.env.LIVEKIT_API_SECRET) {
       console.error("Agent transcript auth failed for meeting:", meetingId);
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
