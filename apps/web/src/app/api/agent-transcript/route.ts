@@ -19,7 +19,6 @@ import { z } from "zod";
  * 5. Agent owns transcript lifecycle from generation to storage
  */
 
-const AGENT_SECRET = process.env.LIVEKIT_API_SECRET;
 
 const bodySchema = z.object({
   meetingId: z.string(),
@@ -47,9 +46,10 @@ export async function POST(req: NextRequest) {
     }
 
     const { meetingId, agentSecret, lines } = parsed.data;
+    const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
 
     // 2. Verify agent secret
-    if (!AGENT_SECRET || agentSecret !== AGENT_SECRET) {
+    if (!LIVEKIT_API_SECRET || agentSecret !== LIVEKIT_API_SECRET) {
       console.error("Agent transcript auth failed for meeting:", meetingId);
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

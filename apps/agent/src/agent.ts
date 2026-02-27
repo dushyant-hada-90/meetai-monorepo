@@ -45,7 +45,7 @@ class TranscriptStorageService {
   constructor(
     private meetingId: string,
     private backendUrl: string,
-    private agentSecret: string
+    private LIVEKIT_API_SECRET: string
   ) {
     // Start periodic flush
     this.flushInterval = setInterval(() => {
@@ -97,7 +97,7 @@ class TranscriptStorageService {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             meetingId: this.meetingId,
-            agentSecret: this.agentSecret,
+            LIVEKIT_API_SECRET: this.LIVEKIT_API_SECRET,
             lines: lines.map((l) => ({
               role: l.role,
               speaker: l.speaker,
@@ -366,11 +366,11 @@ export default defineAgent({
       // 5b. TRANSCRIPT STORAGE SERVICE (Agent-side direct storage)
       //     This eliminates the unreliable client-side "scribe" pattern
       // ─────────────────────────────────────────────────────
-      const agentSecret = process.env.LIVEKIT_API_SECRET!;
+      const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET!;
       const transcriptStorage = new TranscriptStorageService(
         currentMeeting.id,
         backendUrl,
-        agentSecret
+        LIVEKIT_API_SECRET
       );
       console.log("✅ Transcript storage service initialized");
 
