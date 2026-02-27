@@ -24,7 +24,7 @@
 
 MeetAI lets you create custom AI agents, invite them to WebRTC video calls, and have them capture real-time transcripts, decisions, and action items. After each session, a durable background pipeline merges the transcript, resolves speaker names, and produces an AI-generated summary — automatically.
 
-**Live demo:** _coming soon_ · **Docs:** [`apps/docs`](./apps/docs)
+**Docs:** [`apps/docs`](./apps/docs)
 
 ---
 
