@@ -76,21 +76,9 @@ MeetAI lets you create custom AI agents, invite them to WebRTC video calls, and 
 
 ## Architecture Overview
 
-```
-User Browser ──(WebRTC)──► LiveKit SFU ──► AI Agent (Node.js)
-     │                          │               │
-     │ (tRPC / HTTPS)           │ room_finished  │ transcript lines
-     ▼                          ▼               ▼
-Next.js App Router ──► Inngest ──► Gemini ──► Neon Postgres
-       │                                          ▲
-       └───────────────── Drizzle ORM ────────────┘
-```
+For detailed architecture diagrams and data-flow explanations, see the docs site:
 
-**Four data paths:**
-1. **Write** — Agent batches 10 transcript lines per HTTP POST → `JSONB array_concat` on the meeting row
-2. **Read** — Dashboard RSC → tRPC → Drizzle → single row fetch (no JOIN)
-3. **Real-time** — Agent → LiveKit Data Channel → browser (live captions, bypasses DB entirely)
-4. **Async** — LiveKit webhook → Inngest event → 4 checkpointed steps → Gemini → Neon
+https://meetai-monorepo-docs.vercel.app/
 
 ---
 
@@ -198,6 +186,4 @@ See the full [trade-offs & system design documentation](./apps/docs/content/trad
 
 ---
 
-## License
 
-MIT
