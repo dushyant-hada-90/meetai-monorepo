@@ -4,22 +4,6 @@ import { eq, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-/**
- * Agent-side transcript storage API.
- * 
- * This endpoint is called directly by the meetai-agent (server-side) to store
- * transcript lines. Unlike the client-side transcript API, this uses a shared
- * secret for authentication since the agent doesn't have user session cookies.
- * 
- * WHY THIS APPROACH IS BETTER:
- * 1. Agent is server-side, always connected, guaranteed to receive ALL transcript events
- * 2. No client-side buffering = no data lost when users close tabs
- * 3. No "scribe" pattern = no single point of failure
- * 4. Immediate storage with retry logic = no race conditions
- * 5. Agent owns transcript lifecycle from generation to storage
- */
-
-
 const bodySchema = z.object({
   meetingId: z.string(),
   LIVEKIT_API_SECRET: z.string(),
@@ -41,15 +25,33 @@ export async function POST(req: NextRequest) {
     const parsed = bodySchema.safeParse(body);
 
     if (!parsed.success) {
-      console.error("Invalid body for agent-transcript:", parsed.error);
+      console.error("❌ Invalid body for agent-transcript:", parsed.error.format());
       return NextResponse.json({ error: "Invalid body" }, { status: 400 });
     }
 
-    const { meetingId, LIVEKIT_API_SECRET, lines } = parsed.data;
+    const { meetingId, LIVEKIT_API_SECRET: incomingSecret, lines } = parsed.data;
+    const serverSecret = process.env.LIVEKIT_API_SECRET;
 
-    // 2. Verify agent secret
-    if (!LIVEKIT_API_SECRET || LIVEKIT_API_SECRET !== process.env.LIVEKIT_API_SECRET) {
-      console.error("Agent transcript auth failed for meeting:", meetingId);
+    // 2. Enhanced Debug Logs
+    console.log("--- Agent Auth Debug ---");
+    console.log(`Meeting ID: ${meetingId}`);
+    console.log(`Server Secret Defined: ${!!serverSecret}`);
+    
+    if (serverSecret && incomingSecret) {
+      const isMatch = incomingSecret === serverSecret;
+      console.log(`Secrets Match: ${isMatch}`);
+      
+      if (!isMatch) {
+        // Log lengths and first/last chars to spot hidden whitespace or truncation
+        console.log(`Incoming Length: ${incomingSecret.length}, Start: ${incomingSecret.substring(0, 3)}..., End: ...${incomingSecret.slice(-3)}`);
+        console.log(`Server Length: ${serverSecret.length}, Start: ${serverSecret.substring(0, 3)}..., End: ...${serverSecret.slice(-3)}`);
+      }
+    }
+    console.log("------------------------");
+
+    // 3. Verify agent secret
+    if (!serverSecret || incomingSecret !== serverSecret) {
+      console.error(`🚨 Agent transcript auth failed for meeting: ${meetingId}`);
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, stored: 0 });
     }
 
-    // 3. Verify meeting exists
+    // 4. Verify meeting exists
     const [meeting] = await db
       .select({ id: meetings.id })
       .from(meetings)
@@ -68,8 +70,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
     }
 
-    // 4. Bulk append transcript lines with conflict resolution
-    // Lines are stored with their index for ordering
+    // 5. Bulk append transcript lines
     const linesToStore = lines.map((l) => ({
       role: l.role,
       speaker: l.speaker,
