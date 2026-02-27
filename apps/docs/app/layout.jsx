@@ -23,22 +23,7 @@ export default async function RootLayout({ children }) {
           navbar={
             <Navbar
               logo={
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 8,
-                      background: 'rgba(54,226,112,0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <AudioLines size={16} />
-                  </div>
-                  <span style={{ fontWeight: 800, fontSize: '1rem' }}>MeetAI Docs</span>
-                </div>
+                <img src="/logo.svg" alt="MeetAI" style={{ height: 28 }} />
               }
               projectLink="https://github.com/dushyant-hada-90/meetai-monorepo"
             />
