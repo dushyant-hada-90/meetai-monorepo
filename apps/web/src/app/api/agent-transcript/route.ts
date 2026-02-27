@@ -6,7 +6,7 @@ import { z } from "zod";
 
 const bodySchema = z.object({
   meetingId: z.string(),
-  LIVEKIT_API_SECRET: z.string(),
+  INTERNAL_HANDSHAKE_SECRET: z.string(),
   lines: z.array(
     z.object({
       role: z.enum(["human", "assistant"]),
@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid body" }, { status: 400 });
     }
 
-    const { meetingId, LIVEKIT_API_SECRET: incomingSecret, lines } = parsed.data;
-    const serverSecret = process.env.LIVEKIT_API_SECRET;
+    const { meetingId, INTERNAL_HANDSHAKE_SECRET: incomingSecret, lines } = parsed.data;
+    const serverSecret = process.env.INTERNAL_HANDSHAKE_SECRET;
 
     // 2. Enhanced Debug Logs
     console.log("--- Agent Auth Debug ---");

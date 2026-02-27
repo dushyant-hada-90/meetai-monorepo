@@ -57,7 +57,12 @@ function Navbar() {
           <Link className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" href="#about">
             About
           </Link>
-          <Link className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" href="#docs">
+          <Link
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            href="https://meetai-monorepo-docs.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             Docs
           </Link>
         </nav>
@@ -67,10 +72,13 @@ function Navbar() {
           <Link className="hidden sm:block text-sm font-medium text-foreground hover:text-primary transition-colors" href="/sign-in">
             Sign In
           </Link>
-          <button className="h-9 px-4 rounded-lg bg-primary text-black text-sm font-bold hover:bg-[#2dc460] transition-colors flex items-center gap-2 shadow-sm shadow-primary/20">
+          <Link
+            href="/sign-in"
+            className="h-9 px-4 rounded-lg bg-primary text-black text-sm font-bold hover:bg-[#2dc460] transition-colors flex items-center gap-2 shadow-sm shadow-primary/20"
+          >
             <span>Get Started</span>
             <ArrowRight size={16} />
-          </button>
+          </Link>
         </div>
       </div>
     </header>
