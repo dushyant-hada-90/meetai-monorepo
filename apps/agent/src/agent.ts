@@ -58,7 +58,7 @@ class TranscriptStorageService {
   add(line: TranscriptLine): void {
     this.buffer.push(line);
     console.log(`📝 Buffered transcript #${line.index} for storage (buffer: ${this.buffer.length})`);
-    
+
     // Auto-flush if batch size reached
     if (this.buffer.length >= this.BATCH_SIZE) {
       this.flush().catch((err) =>
@@ -79,7 +79,7 @@ class TranscriptStorageService {
     this.buffer = [];
 
     this.flushPromise = this.storeWithRetry(lines);
-    
+
     try {
       await this.flushPromise;
     } finally {
@@ -119,7 +119,7 @@ class TranscriptStorageService {
       } catch (err) {
         lastError = err as Error;
         console.warn(`⚠️ Transcript storage attempt ${attempt}/${this.MAX_RETRIES} failed:`, err);
-        
+
         if (attempt < this.MAX_RETRIES) {
           // Exponential backoff
           await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
@@ -306,7 +306,7 @@ export default defineAgent({
         - Speak naturally and conversationally—avoid sounding robotic.
         - Be concise and professional. Do not ramble.
         - Wait for the other person to finish speaking before you reply.
-        - ALWAYS respond in English. All transcription and responses must be in English.
+        - ALWAYS respond in English. All transcription and responses must be in English script(auto translate while scripting).
         - When multiple people are in the meeting, address them by name.
         - Introduce yourself as "${currentAgent.name}" if asked who you are.
         - If a participant states a factually incorrect claim, briefly and politely correct it with one concise sentence and, if helpful, a short rationale.
@@ -319,7 +319,7 @@ export default defineAgent({
         - The tool ALWAYS returns { status: "pending" } immediately — this means the approval dialog is now open on the participant's screen. This is NOT a failure.
         - When the participant approves or rejects, you will receive a spoken instruction containing "CALENDAR_APPROVAL_RESULT [callId:XYZ]:". That carries the real decision.
         - Until you hear that instruction, simply acknowledge the pending state in one sentence and remain conversational.
-        - When you hear the APPROVED/REJECTED result, announce it to the meeting in one sentence then move on.
+        - When you hear the APPROVED/REJECTED result, do not announce it to the meeting unless asked.
         Multi-Speaker Awareness:
         - This is a multi-participant meeting. Multiple humans may take turns speaking.
         - You will receive context about who is currently speaking via system updates.
@@ -335,7 +335,7 @@ export default defineAgent({
       // 4. CONFIGURE GEMINI REALTIME MODEL
       // ─────────────────────────────────────────────────────
       const realtimeModel = new google.beta.realtime.RealtimeModel({
-        model: "gemini-2.5-flash-native-audio-preview-12-2025",
+        model: "gemini-2.5-flash-native-audio-preview-09-2025", // <-- Use the correct 2.0 experimental model
         voice: "Puck",
         temperature: 0.7,
         language: "en-US", // Fix: prevent wrong-language transcription (Hindi for English)
@@ -350,7 +350,7 @@ export default defineAgent({
       //    - The session handles turn detection automatically
       //      with Gemini realtime (no manual generateReply on speech stop)
       // ─────────────────────────────────────────────────────
-      
+
       // ✅ Session is created FIRST so it can be passed into buildCalendarTool.
       //    The tool uses session.generateReply() to inject approval results back
       //    into the LLM turn without blocking audio generation.
@@ -359,7 +359,7 @@ export default defineAgent({
       });
 
       // ✅ CHANGED: Set backend URL and build the tool dynamically
-      const backendUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const backendUrl = process.env.NEXT_PUBLIC_APP_URL!;
       const calendarTool = buildCalendarTool(backendUrl, currentMeeting.id, currentAgent.id, session);
 
       // ─────────────────────────────────────────────────────
@@ -489,7 +489,7 @@ export default defineAgent({
         voice.AgentSessionEventTypes.Close,
         async (event) => {
           console.log("🔒 Session closing. Reason:", event.reason);
-          
+
           // CRITICAL: Flush all pending transcripts before session ends
           try {
             await transcriptStorage.shutdown();

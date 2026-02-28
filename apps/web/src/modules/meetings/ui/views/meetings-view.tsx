@@ -4,7 +4,7 @@ import { DataTable } from "@/components/data-table";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { useTRPC } from "@/trpc/client";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { columns } from "../components/columns";
 import { EmptyState } from "@/components/empty-state";
@@ -15,6 +15,7 @@ import { DataPagination } from "@/components/data-pagination";
 export const MeetingsView = () => {
   const trpc = useTRPC();
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [filters, setFilters] = useMeetingsFilters()
   // console.log(filters,"---")
   const { data } = useSuspenseQuery(trpc.meetings.getMany.queryOptions({
@@ -40,6 +41,17 @@ export const MeetingsView = () => {
       refetchIntervalInBackground: false,
     }
   ));
+
+  // Keep individual meeting cache entries in sync with the polled list
+  React.useEffect(() => {
+    if (!data?.items) return;
+
+    data.items.forEach((item) => {
+      const opts = trpc.meetings.getOne.queryOptions({ id: item.id });
+      // Update the cached meeting detail so navigation shows the latest status
+      queryClient.setQueryData(opts.queryKey, item);
+    });
+  }, [data, queryClient, trpc]);
 
   return (
     <div className="flex-1 pb-4 px-4 md:px-8 flex flex-col gap-y-4">
